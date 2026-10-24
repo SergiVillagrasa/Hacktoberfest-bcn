@@ -10,8 +10,9 @@ relevant PR or demo notes; this page tracks completion, not implementation detai
   checks, builds, and opens the side panel in Chrome.
 - [ ] Albert and Joana choose the Gmail/history and local AI/context lanes
   between them; the choice and shared-contract agreement are recorded.
-- [ ] The team prepares fictional messages that cover a client concern, an
-  outgoing manager promise, a stated goal or preference, and an unknown sender.
+- [ ] The team sends [the fictional message set](gmail-test-messages.md) to a
+  dedicated test inbox. It covers a client concern, manager promise, stated
+  goal/preference, and an unknown sender.
 
 ## Gmail capture and history
 
