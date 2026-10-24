@@ -11,7 +11,15 @@ function visible(element: Element): boolean {
 
 // Gmail's DOM is an adapter boundary. Missing identity/direction fails closed.
 export function extractCurrentEmail(root: Document): EmailContext | null {
-  const accountLabel = root.querySelector('a[href*="accounts.google.com"][aria-label]')?.getAttribute('aria-label') ?? '';
+  const accountElement =
+    root.querySelector('a[href*="accounts.google.com"][aria-label]') ??
+    root.querySelector('[aria-label*="@"]') ??
+    root.querySelector('a[href*="SignOutOptions"]') ??
+    root.querySelector('[data-identifier]');
+  const accountLabel =
+    accountElement?.getAttribute('aria-label') ??
+    accountElement?.getAttribute('data-identifier') ??
+    '';
   const account = accountLabel.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0]?.toLowerCase();
   if (!account) return null;
   const bodies = Array.from(root.querySelectorAll('.a3s')).filter(visible);
