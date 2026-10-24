@@ -6,7 +6,7 @@ relevant PR or demo notes; this page tracks completion, not implementation detai
 
 ## Shared foundation and kickoff
 
-- [ ] A fresh checkout installs from the root lockfile, passes the documented
+- [x] A fresh checkout installs from the root lockfile, passes the documented
   checks, builds, and opens the side panel in Chrome.
 - [ ] Albert and Joana choose the Gmail/history and local AI/context lanes
   between them; the choice and shared-contract agreement are recorded.
