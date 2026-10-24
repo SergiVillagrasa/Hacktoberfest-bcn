@@ -30,8 +30,16 @@ describe('visible Gmail message identity', () => {
   });
 
   it('does not attribute a manager reply to the client starting the thread', () => {
-    expect(extractCurrentEmail(fixture([
+    const email = extractCurrentEmail(fixture([
       { id: 'a', sender: 'client@example.test', body: 'Client question' },
+      { id: 'b', sender: 'manager@example.test', body: 'Manager answer' },
+    ]));
+    expect(email).toMatchObject({ id: 'a', senderEmail: 'client@example.test', body: 'Client question', direction: 'incoming' });
+    expect(email?.body).not.toContain('Manager answer');
+  });
+
+  it('fails closed on outgoing threads with no incoming client message', () => {
+    expect(extractCurrentEmail(fixture([
       { id: 'b', sender: 'manager@example.test', body: 'Manager answer' },
     ]))).toBeNull();
   });

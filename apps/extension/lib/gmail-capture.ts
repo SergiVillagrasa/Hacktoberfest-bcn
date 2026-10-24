@@ -23,25 +23,55 @@ export function extractCurrentEmail(root: Document): EmailContext | null {
   const account = accountLabel.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0]?.toLowerCase();
   if (!account) return null;
   const bodies = Array.from(root.querySelectorAll('.a3s')).filter(visible);
-  const bodyElement = bodies[bodies.length - 1];
-  const container = bodyElement?.closest('[data-message-id], [data-legacy-message-id]');
-  if (!bodyElement || !container) return null;
-  const sender = container.querySelector('.gD[email], .gD[data-hovercard-id]');
-  const senderEmail = (sender?.getAttribute('email') ?? sender?.getAttribute('data-hovercard-id') ?? '').toLowerCase();
-  // Current-message capture accepts incoming email only. Manager replies stay in explicit imports.
-  if (!senderEmail || senderEmail === account) return null;
-  const id = container.getAttribute('data-legacy-message-id') ?? container.getAttribute('data-message-id');
-  if (!id) return null;
-  const email: EmailContext = {
-    id,
-    senderEmail,
-    subject: root.querySelector('h2.hP')?.textContent?.trim() ?? '',
-    body: bodyElement.textContent ?? '',
-    direction: 'incoming',
-    source: 'gmail',
-  };
-  // Gmail's localized display dates are ambiguous; leave sentAt unknown.
-  return isEmailContext(email) ? email : null;
+  // Scan backwards from newest to find the latest visible incoming client message in the conversation.
+  // Outgoing manager replies are skipped so the client context and agreements in the thread remain active.
+  for (let i = bodies.length - 1; i >= 0; i--) {
+    const bodyElement = bodies[i];
+    const container = bodyElement?.closest('[data-message-id], [data-legacy-message-id]');
+    if (!bodyElement || !container) continue;
+    const sender = container.querySelector('.gD[email], .gD[data-hovercard-id]');
+    const senderEmail = (sender?.getAttribute('email') ?? sender?.getAttribute('data-hovercard-id') ?? '').toLowerCase();
+    // Current-message capture accepts incoming email only. Manager replies stay in explicit imports.
+    if (!senderEmail || senderEmail === account) continue;
+    const id = container.getAttribute('data-legacy-message-id') ?? container.getAttribute('data-message-id');
+    if (!id) continue;
+    const email: EmailContext = {
+      id,
+      senderEmail,
+      subject: root.querySelector('h2.hP')?.textContent?.trim() ?? '',
+      body: bodyElement.textContent ?? '',
+      direction: 'incoming',
+      source: 'gmail',
+    };
+    // Gmail's localized display dates are ambiguous; leave sentAt unknown.
+    if (isEmailContext(email)) return email;
+  }
+
+  // Fallback: If earlier client messages are collapsed in the thread, find the latest incoming client container
+  const allContainers = Array.from(root.querySelectorAll('[data-message-id], [data-legacy-message-id]'));
+  for (let i = allContainers.length - 1; i >= 0; i--) {
+    const container = allContainers[i];
+    if (typeof container?.querySelector !== 'function') continue;
+    const sender = container.querySelector('.gD[email], .gD[data-hovercard-id]');
+    const senderEmail = (sender?.getAttribute('email') ?? sender?.getAttribute('data-hovercard-id') ?? '').toLowerCase();
+    if (!senderEmail || senderEmail === account) continue;
+    const bodyElement = container.querySelector('.a3s');
+    const body = bodyElement?.textContent?.trim() ?? '';
+    if (!body) continue;
+    const id = container.getAttribute('data-legacy-message-id') ?? container.getAttribute('data-message-id');
+    if (!id) continue;
+    const email: EmailContext = {
+      id,
+      senderEmail,
+      subject: root.querySelector('h2.hP')?.textContent?.trim() ?? '',
+      body,
+      direction: 'incoming',
+      source: 'gmail',
+    };
+    if (isEmailContext(email)) return email;
+  }
+
+  return null;
 }
 
 export function captureFingerprint(email: EmailContext | null): string {

@@ -46,6 +46,22 @@ export function App() {
   const [showHistory, setShowHistory] = useState(false);
   const [clientHistory, setClientHistory] = useState<EmailContext[]>([]);
   const [engineStatus, setEngineStatus] = useState<InferenceEngineStatus>('idle');
+  const [ollamaConnected, setOllamaConnected] = useState<boolean | null>(null);
+
+  // Monitor Ollama daemon health
+  useEffect(() => {
+    let mounted = true;
+    async function checkHealth() {
+      const ok = await inferenceAdapter.checkOllamaHealth();
+      if (mounted) setOllamaConnected(ok);
+    }
+    void checkHealth();
+    const interval = setInterval(checkHealth, 8000);
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
+  }, [inferenceAdapter]);
 
   // Seed default demo client if empty
   useEffect(() => {
@@ -64,7 +80,6 @@ export function App() {
       const generation = selection.begin();
       const current = () => selection.isCurrent(generation);
       setClientHistory([]);
-      setEngineStatus('idle');
       setShowHistory(false);
       setActiveEmail(email);
       setIsAnalyzing(true);
@@ -77,10 +92,13 @@ export function App() {
         if (!profile) {
           const subjectLower = email.subject.toLowerCase();
           const bodyLower = email.body.toLowerCase();
+          const senderLower = email.senderEmail.toLowerCase();
           const isTestInboxThread =
+            senderLower.includes('sergijirapat') ||
             subjectLower.includes('commissions') ||
             subjectLower.includes('comissions') ||
             subjectLower.includes('savings plan') ||
+            subjectLower.includes('monthly maintenance') ||
             bodyLower.includes('monthly maintenance fee') ||
             bodyLower.includes('fee breakdown') ||
             bodyLower.includes('home deposit') ||
@@ -107,8 +125,13 @@ export function App() {
         const analysis = await service.analyzeEmail(email, profile);
         if (!current()) return;
         const modes = analysis.status === 'analyzed' ? analysis.suggestions.map((item) => item.inference) : [];
-        setEngineStatus(modes.includes('offline-fallback') ? 'offline-fallback'
-          : modes.length > 0 && modes.every((mode) => mode === 'ollama-live') ? 'ollama-live' : 'idle');
+        if (modes.includes('offline-fallback')) {
+          setEngineStatus('offline-fallback');
+        } else if (modes.length > 0 && modes.every((m) => m === 'ollama-live')) {
+          setEngineStatus('ollama-live');
+        } else {
+          setEngineStatus(ollamaConnected ? 'ollama-live' : 'idle');
+        }
 
         const briefing = await service.getBriefing(email.senderEmail);
         if (!current()) return;
@@ -130,7 +153,7 @@ export function App() {
         if (current()) setIsAnalyzing(false);
       }
     },
-    [profilePort, historyPort, inferenceAdapter, service, selection]
+    [profilePort, historyPort, inferenceAdapter, service, selection, ollamaConnected]
   );
 
   // Listen for Gmail messages from the content script
@@ -146,7 +169,7 @@ export function App() {
 
       if (capture.type === 'email/cleared') {
         selection.begin();
-        setEngineStatus('idle');
+        setEngineStatus(ollamaConnected ? 'ollama-live' : 'idle');
         setClientHistory([]);
         setShowHistory(false);
         setIsAnalyzing(false);
@@ -229,17 +252,17 @@ export function App() {
               <span className="badge-engine analyzing" title="Processant correu amb IA local...">
                 <span className="pulse-spinner" /> Analitzant IA...
               </span>
-            ) : engineStatus === 'ollama-live' ? (
+            ) : engineStatus === 'offline-fallback' || (ollamaConnected === false && engineStatus !== 'ollama-live') ? (
+              <span className="badge-engine fallback" title="Ollama no disponible; s'utilitza el fallback local">
+                ⚠ Fallback local
+              </span>
+            ) : engineStatus === 'ollama-live' || ollamaConnected === true ? (
               <span className="badge-engine live" title="IA Local activa: connectat a Ollama (http://127.0.0.1:11434)">
                 ● Ollama Qwen3
               </span>
-            ) : engineStatus === 'offline-fallback' ? (
-              <span className="badge-engine fallback" title="Ollama no ha respost correctament; s'utilitza el fallback local">
-                ⚠ Fallback local
-              </span>
             ) : (
-              <span className="badge-engine idle">
-                ○ Sense inferència nova
+              <span className="badge-engine idle" title="Comprovant connexió amb Ollama...">
+                ○ Comprovant Ollama...
               </span>
             )}
           </div>
@@ -318,7 +341,7 @@ export function App() {
       {!isAnalyzing && panelState.status === 'ready' && (
         <>
           {/* Active Engine Notice Banner */}
-          {engineStatus === 'offline-fallback' && (
+          {(engineStatus === 'offline-fallback' || (ollamaConnected === false && engineStatus !== 'ollama-live')) && (
             <div className="engine-banner banner-fallback">
               <span className="engine-banner-icon">⚠️</span>
               <div className="engine-banner-text">
@@ -326,11 +349,11 @@ export function App() {
               </div>
             </div>
           )}
-          {engineStatus === 'ollama-live' && (
+          {(engineStatus === 'ollama-live' || ollamaConnected === true) && (
             <div className="engine-banner banner-live">
               <span className="engine-banner-icon">🟢</span>
               <div className="engine-banner-text">
-                <strong>Model Qwen3 en directe:</strong> La IA local d&apos;Ollama està analitzant i generant observacions en temps real.
+                <strong>Model Qwen3 en directe:</strong> La IA local d&apos;Ollama està connectada i generant observacions en temps real.
               </div>
             </div>
           )}
