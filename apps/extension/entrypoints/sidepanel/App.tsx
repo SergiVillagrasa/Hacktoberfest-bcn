@@ -203,7 +203,7 @@ export function App() {
           <h1>Assessor Bancari AI</h1>
           <div className="engine-status-badge-wrapper">
             {isAnalyzing ? (
-              <span className="badge-engine analyzing" title="Processant correu amb IA local (màx. 60s)...">
+              <span className="badge-engine analyzing" title="Processant correu amb IA local...">
                 <span className="pulse-spinner" /> Analitzant IA...
               </span>
             ) : engineStatus === 'ollama-live' ? (
@@ -247,7 +247,7 @@ export function App() {
           <div className="analysis-spinner" />
           <h2>Analitzant amb model local...</h2>
           <p>Llegint correu de Gmail i extraient pactes, evidències i historial amb IA local.</p>
-          <span className="analysis-hint">Model Ollama Qwen3 actiu (amb seguretat offline &lt; 10s)</span>
+          <span className="analysis-hint">Model Ollama Qwen3 actiu en temps real</span>
         </div>
       )}
 

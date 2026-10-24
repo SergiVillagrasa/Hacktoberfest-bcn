@@ -16,7 +16,7 @@ export interface OllamaAdapterConfig {
 const DEFAULT_CONFIG: Required<OllamaAdapterConfig> = {
   baseUrl: 'http://127.0.0.1:11434',
   model: 'qwen3:1.7b',
-  timeoutMs: 60_000,
+  timeoutMs: 0, // 0 = timeout disabled (waits for model completion)
   useFallbackOnOffline: true,
 };
 
@@ -108,11 +108,14 @@ ${sourcesSummary}
 
 Extract up to 2 observations as JSON now.`;
 
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), this.config.timeoutMs);
-    try {
+    const controller = this.config.timeoutMs > 0 ? new AbortController() : undefined;
+    const timer =
+      this.config.timeoutMs > 0
+        ? setTimeout(() => controller?.abort(), this.config.timeoutMs)
+        : undefined;
 
-      const response = await fetch(`${this.config.baseUrl}/api/chat`, {
+    try {
+      const requestInit: RequestInit = {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -129,8 +132,13 @@ Extract up to 2 observations as JSON now.`;
             { role: 'user', content: userPrompt },
           ],
         }),
-        signal: controller.signal,
-      });
+      };
+
+      if (controller) {
+        requestInit.signal = controller.signal;
+      }
+
+      const response = await fetch(`${this.config.baseUrl}/api/chat`, requestInit);
 
       if (!response.ok) {
         throw new Error(`Ollama HTTP error ${response.status}: ${response.statusText}`);
@@ -148,7 +156,9 @@ Extract up to 2 observations as JSON now.`;
       }
       throw error;
     } finally {
-      clearTimeout(timer);
+      if (timer) {
+        clearTimeout(timer);
+      }
     }
   }
 
