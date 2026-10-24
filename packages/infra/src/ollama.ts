@@ -16,7 +16,7 @@ export interface OllamaAdapterConfig {
 const DEFAULT_CONFIG: Required<OllamaAdapterConfig> = {
   baseUrl: 'http://127.0.0.1:11434',
   model: 'qwen3:1.7b',
-  timeoutMs: 15_000,
+  timeoutMs: 45_000,
   useFallbackOnOffline: true,
 };
 
@@ -63,17 +63,18 @@ export class OllamaInferenceAdapter implements InferencePort {
   }): Promise<ContextCandidate[]> {
     const systemPrompt = `You are an AI assistant for a bank relationship manager.
 Analyze the provided email and available historical thread sources for client "${input.profile.displayName}" (${input.profile.email}).
-Extract at most 5 key observations related to:
+Extract 2 to 3 key observations related to:
 - "concern": customer doubts, fears, complaints, fee worries
 - "commitment": promises made by the manager or customer
-- "goal": business or financial targets (e.g. green machinery, financing timeline)
+- "goal": business or financial targets
 - "preference": communication channels, meeting preferences
-- "communication_signal": message-specific tone or sentiment
+- "communication_signal": message-specific tone
 
 MANDATORY RULES:
 1. Every item MUST cite an exact "sourceEmailId" from the provided emails.
 2. Every item MUST cite an exact "sourceExcerpt" that appears VERBATIM as a substring in that email's body.
-3. Return ONLY valid JSON in this exact structure:
+3. Keep each "text" and "sourceExcerpt" concise (under 20 words).
+4. Return ONLY valid JSON in this exact structure:
 {
   "items": [
     {
@@ -92,7 +93,8 @@ MANDATORY RULES:
       )
       .join('\n---\n');
 
-    const userPrompt = `CLIENT PROFILE:
+    const userPrompt = `/no_think
+CLIENT PROFILE:
 Name: ${input.profile.displayName}
 Email: ${input.profile.email}
 
@@ -104,7 +106,7 @@ Body: ${input.email.body}
 AVAILABLE THREAD SOURCES:
 ${sourcesSummary}
 
-Extract up to 5 observations as JSON.`;
+Extract up to 3 observations as valid JSON now.`;
 
     try {
       const controller = new AbortController();
@@ -117,6 +119,10 @@ Extract up to 5 observations as JSON.`;
           model: this.config.model,
           stream: false,
           format: 'json',
+          options: {
+            num_predict: 400,
+            temperature: 0.1,
+          },
           messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt },
@@ -150,36 +156,54 @@ Extract up to 5 observations as JSON.`;
     currentEmail: EmailContext,
     sources: readonly EmailContext[]
   ): ContextCandidate[] {
+    let itemsArray: unknown[] = [];
     try {
       const parsed = JSON.parse(rawJson) as { items?: unknown[] };
-      if (!Array.isArray(parsed.items)) return [];
-
-      const candidates: ContextCandidate[] = [];
-      for (const item of parsed.items) {
-        if (typeof item !== 'object' || item === null) continue;
-        const candidate = item as Record<string, unknown>;
-
-        const kind = candidate.kind as ContextKind;
-        const text = typeof candidate.text === 'string' ? candidate.text.trim() : '';
-        const sourceEmailId =
-          typeof candidate.sourceEmailId === 'string' ? candidate.sourceEmailId.trim() : '';
-        const sourceExcerpt =
-          typeof candidate.sourceExcerpt === 'string' ? candidate.sourceExcerpt.trim() : '';
-
-        if (
-          VALID_KINDS.includes(kind) &&
-          text.length > 0 &&
-          sourceEmailId.length > 0 &&
-          sourceExcerpt.length > 0
-        ) {
-          candidates.push({ kind, text, sourceEmailId, sourceExcerpt });
+      if (Array.isArray(parsed.items)) {
+        itemsArray = parsed.items;
+      }
+    } catch {
+      // If generation was cut short, salvage completed item objects
+      const matches = rawJson.match(/\{[^{}]*"kind"[^{}]*"text"[^{}]*"sourceEmailId"[^{}]*"sourceExcerpt"[^{}]*\}/g);
+      if (matches) {
+        for (const m of matches) {
+          try {
+            itemsArray.push(JSON.parse(m));
+          } catch {
+            // ignore malformed fragment
+          }
         }
       }
+    }
 
-      return candidates.slice(0, 5);
-    } catch {
+    const candidates: ContextCandidate[] = [];
+    for (const item of itemsArray) {
+      if (typeof item !== 'object' || item === null) continue;
+      const candidate = item as Record<string, unknown>;
+
+      const kind = candidate.kind as ContextKind;
+      const text = typeof candidate.text === 'string' ? candidate.text.trim() : '';
+      const sourceEmailId =
+        typeof candidate.sourceEmailId === 'string' ? candidate.sourceEmailId.trim() : '';
+      const sourceExcerpt =
+        typeof candidate.sourceExcerpt === 'string' ? candidate.sourceExcerpt.trim() : '';
+
+      if (
+        VALID_KINDS.includes(kind) &&
+        text.length > 0 &&
+        sourceEmailId.length > 0 &&
+        sourceExcerpt.length > 0
+      ) {
+        candidates.push({ kind, text, sourceEmailId, sourceExcerpt });
+      }
+    }
+
+    if (candidates.length === 0 && this.config.useFallbackOnOffline) {
+      this.lastInferenceMode = 'offline-fallback';
       return this.getOfflineFallbackCandidates(currentEmail, sources);
     }
+
+    return candidates.slice(0, 5);
   }
 
   private getOfflineFallbackCandidates(
