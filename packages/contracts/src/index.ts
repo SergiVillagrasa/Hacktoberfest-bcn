@@ -11,7 +11,8 @@ export type EmailContext = {
 export type SourceEvidence = { sourceEmailId: string; sourceExcerpt: string };
 export type ContextKind =
   | 'concern' | 'commitment' | 'goal' | 'preference' | 'communication_signal';
-export type ContextCandidate = SourceEvidence & { kind: ContextKind; text: string };
+export type ContextCandidate = SourceEvidence & { kind: ContextKind; text: string; inference?: InferenceMode };
+export type InferenceMode = 'ollama-live' | 'offline-fallback' | 'unknown';
 export type ContextItem = ContextCandidate & {
   id: string;
   review: 'suggested' | 'confirmed' | 'dismissed';

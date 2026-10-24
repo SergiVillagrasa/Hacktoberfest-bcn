@@ -21,3 +21,27 @@ Persist via Chrome storage adapters, analyze unchanged messages once, and keep c
 Use fake ports to verify client isolation, rejection of a source from another client, invalid JSON/shape handling, literal-excerpt validation, review-state transitions, resolution and incomplete-history behavior. Check that a real local Ollama call produces usable context on the fictional sample. Exercise adapter failures without marking fallback output live or inferred facts confirmed.
 
 Core context/review rules can form one useful PR, and working local adapters plus analysis can form another. Hand Sergi a stable core API and injected adapters; keep rules out of React, handlers and storage/model code. Reply drafting is optional after the briefing path works.
+
+## Local Ollama connection handoff
+
+The reconciled branch retains the team's prompt, processing indicator and cache
+work. Loopback host permissions and the server's exact extension-origin allowlist
+are required. Qwen thinking is disabled; generation is bounded and the adapter
+waits for CPU inference to complete by default (a configured deadline remains available). Invalid response JSON follows the labeled
+fallback path rather than being marked live. Verification is recorded in PR #4:
+local adapter inference with fallback disabled, core excerpt validation, targeted
+fallback-provenance regression tests, workspace checks and a generated-manifest
+inspection. A visible Chrome sidebar rehearsal remains a separate acceptance step.
+
+## PR #4 review fixes
+
+Address the nine Codex findings across Gmail capture, sidebar coordination and
+core state updates. Scope extraction to one visible message with a stable source
+ID; omit unverified dates and replay capture on panel startup. Guard asynchronous
+sidebar publications by navigation generation. Serialize client writes and merge
+analysis against current saved state, preserving manager reviews. Persist inference
+origin per suggestion, hide dismissed items and allow explicit reopening. Remove
+the item-presence cache, which cannot distinguish changed messages or inference
+origins. Verify with deferred concurrency tests, capture/replay fixtures, review
+transitions, provenance tests, typecheck and extension build. Real Gmail DOM
+compatibility and a visible Chrome navigation rehearsal remain manual checks.

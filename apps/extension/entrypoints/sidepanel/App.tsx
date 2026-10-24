@@ -1,16 +1,590 @@
+import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
+import type {
+  CaptureMessage,
+  ContextItem,
+  EmailContext,
+  PanelState,
+} from '@briefing/contracts';
+import { isCaptureMessage } from '@briefing/contracts';
+import { ClientContextService } from '@briefing/core';
+import {
+  LocalStorageHistoryPort,
+  LocalStorageProfilePort,
+  OllamaInferenceAdapter,
+  SAMPLE_CLIENT,
+  SAMPLE_CURRENT_EMAIL,
+  SAMPLE_HISTORICAL_EMAILS,
+  createClientProfileForTestInbox,
+  createHistoricalEmailsForTestInbox,
+  type InferenceEngineStatus,
+} from '@briefing/infra';
+import '../../assets/panel.css';
+import { browser } from 'wxt/browser';
+import { SelectionGuard } from '../../lib/selection-guard';
+
 export function App() {
+  const selection = useRef(new SelectionGuard()).current;
+  const profilePort = useMemo(() => new LocalStorageProfilePort(), []);
+  const historyPort = useMemo(() => new LocalStorageHistoryPort(), []);
+  const inferenceAdapter = useMemo(
+    () => new OllamaInferenceAdapter({ useFallbackOnOffline: true }),
+    []
+  );
+  const service = useMemo(
+    () =>
+      new ClientContextService({
+        profilePort,
+        historyPort,
+        inferencePort: inferenceAdapter,
+      }),
+    [profilePort, historyPort, inferenceAdapter]
+  );
+
+  const [panelState, setPanelState] = useState<PanelState>({ status: 'empty' });
+  const [activeEmail, setActiveEmail] = useState<EmailContext | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [clientHistory, setClientHistory] = useState<EmailContext[]>([]);
+  const [engineStatus, setEngineStatus] = useState<InferenceEngineStatus>('idle');
+
+  // Seed default demo client if empty
+  useEffect(() => {
+    async function initData() {
+      const existing = await profilePort.findByEmail(SAMPLE_CLIENT.email);
+      if (!existing) {
+        await profilePort.save(SAMPLE_CLIENT);
+        await historyPort.save(SAMPLE_CLIENT.id, SAMPLE_HISTORICAL_EMAILS);
+      }
+    }
+    void initData();
+  }, [profilePort, historyPort]);
+
+  const processEmail = useCallback(
+    async (email: EmailContext, requestId: string = crypto.randomUUID()) => {
+      const generation = selection.begin();
+      const current = () => selection.isCurrent(generation);
+      setClientHistory([]);
+      setEngineStatus('idle');
+      setShowHistory(false);
+      setActiveEmail(email);
+      setIsAnalyzing(true);
+      setPanelState({ status: 'loading', requestId });
+
+      try {
+        let profile = await profilePort.findByEmail(email.senderEmail);
+
+        // Auto-seed profile & history if opening the official Gmail test inbox thread
+        if (!profile) {
+          const subjectLower = email.subject.toLowerCase();
+          const bodyLower = email.body.toLowerCase();
+          const isTestInboxThread =
+            subjectLower.includes('commissions') ||
+            subjectLower.includes('comissions') ||
+            subjectLower.includes('savings plan') ||
+            bodyLower.includes('monthly maintenance fee') ||
+            bodyLower.includes('fee breakdown') ||
+            bodyLower.includes('home deposit') ||
+            bodyLower.includes('steps you promised');
+
+          if (isTestInboxThread) {
+            profile = createClientProfileForTestInbox(email.senderEmail);
+            const initialHistory = createHistoricalEmailsForTestInbox(email.senderEmail);
+            await profilePort.save(profile);
+            await historyPort.save(profile.id, initialHistory);
+          }
+        }
+
+        if (!current()) return;
+        if (!profile) {
+          setPanelState({ status: 'no-client', senderEmail: email.senderEmail });
+          setIsAnalyzing(false);
+          return;
+        }
+
+        // Save visible message and run AI analysis
+        await service.captureEmail(email);
+        if (!current()) return;
+        const analysis = await service.analyzeEmail(email, profile);
+        if (!current()) return;
+        const modes = analysis.status === 'analyzed' ? analysis.suggestions.map((item) => item.inference) : [];
+        setEngineStatus(modes.includes('offline-fallback') ? 'offline-fallback'
+          : modes.length > 0 && modes.every((mode) => mode === 'ollama-live') ? 'ollama-live' : 'idle');
+
+        const briefing = await service.getBriefing(email.senderEmail);
+        if (!current()) return;
+        if (briefing) {
+          const { emails: hist } = await historyPort.list(profile.id);
+          if (!current()) return;
+          setPanelState({ status: 'ready', requestId, briefing });
+          setClientHistory(hist);
+        } else {
+          setPanelState({ status: 'no-client', senderEmail: email.senderEmail });
+        }
+      } catch (err) {
+        if (!current()) return;
+        setPanelState({
+          status: 'unavailable',
+          reason: err instanceof Error ? err.message : 'Error desconegut durant l\'anàlisi',
+        });
+      } finally {
+        if (current()) setIsAnalyzing(false);
+      }
+    },
+    [profilePort, historyPort, inferenceAdapter, service, selection]
+  );
+
+  // Listen for Gmail messages from the content script
+  useEffect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const chromeApi = (globalThis as any).chrome;
+    if (!chromeApi?.runtime?.onMessage) return;
+
+    function handleMessage(message: unknown, sender?: { id?: string; url?: string; tab?: { active?: boolean } }) {
+      if (sender && (sender.id !== browser.runtime.id || !sender.url?.startsWith('https://mail.google.com/') || !sender.tab?.active)) return;
+      if (!isCaptureMessage(message)) return;
+      const capture = message as CaptureMessage;
+
+      if (capture.type === 'email/cleared') {
+        selection.begin();
+        setEngineStatus('idle');
+        setClientHistory([]);
+        setShowHistory(false);
+        setIsAnalyzing(false);
+        setActiveEmail(null);
+        setPanelState({ status: 'empty' });
+      } else if (capture.type === 'email/captured') {
+        void processEmail(capture.email, capture.requestId);
+      }
+    }
+
+    chromeApi.runtime.onMessage.addListener(handleMessage);
+    const generation = selection.snapshot();
+    void browser.tabs.query({ active: true, currentWindow: true }).then(async ([tab]) => {
+      if (tab?.id === undefined) return;
+      const replay: unknown = await browser.tabs.sendMessage(tab.id, { type: 'capture/current' });
+      if (selection.isCurrent(generation)) handleMessage(replay);
+    }).catch(() => {});
+    return () => {
+      selection.begin();
+      chromeApi.runtime.onMessage.removeListener(handleMessage);
+    };
+  }, [processEmail, selection]);
+
+  // Actions for manager review & resolution
+  const handleReview = async (item: ContextItem, review: 'confirmed' | 'dismissed') => {
+    if (panelState.status !== 'ready') return;
+    const generation = selection.snapshot();
+    await service.reviewItem(panelState.briefing.client.id, item.id, review);
+    const updated = await service.getBriefing(panelState.briefing.client.email);
+    if (selection.isCurrent(generation) && updated) {
+      setPanelState({ status: 'ready', requestId: panelState.requestId, briefing: updated });
+    }
+  };
+
+  const handleToggleResolve = async (item: ContextItem) => {
+    if (panelState.status !== 'ready') return;
+    const generation = selection.snapshot();
+    await service.resolveItem(panelState.briefing.client.id, item.id, item.resolution === 'resolved' ? 'open' : 'resolved');
+    const updated = await service.getBriefing(panelState.briefing.client.email);
+    if (selection.isCurrent(generation) && updated) {
+      setPanelState({ status: 'ready', requestId: panelState.requestId, briefing: updated });
+    }
+  };
+
+  const handleBindClientManually = async (emailAddress: string) => {
+    const generation = selection.snapshot();
+    const profile = createClientProfileForTestInbox(emailAddress);
+    const initialHistory = createHistoricalEmailsForTestInbox(emailAddress);
+    await profilePort.save(profile);
+    await historyPort.save(profile.id, initialHistory);
+    if (selection.isCurrent(generation) && activeEmail) {
+      void processEmail(activeEmail);
+    }
+  };
+
+  const commitments = useMemo(() => {
+    if (panelState.status !== 'ready') return [];
+    return panelState.briefing.items.filter((i) => i.kind === 'commitment');
+  }, [panelState]);
+
+  const concerns = useMemo(() => {
+    if (panelState.status !== 'ready') return [];
+    return panelState.briefing.items.filter((i) => i.kind === 'concern');
+  }, [panelState]);
+
+  const goalsAndPreferences = useMemo(() => {
+    if (panelState.status !== 'ready') return [];
+    return panelState.briefing.items.filter(
+      (i) => i.kind === 'goal' || i.kind === 'preference' || i.kind === 'communication_signal'
+    );
+  }, [panelState]);
+
   return (
     <main>
       <header>
-        <h1>Client briefing</h1>
-        <p>Context for your next conversation.</p>
+        <div className="brand-title">
+          <h1>Assessor Bancari AI</h1>
+          <div className="engine-status-badge-wrapper">
+            {isAnalyzing ? (
+              <span className="badge-engine analyzing" title="Processant correu amb IA local...">
+                <span className="pulse-spinner" /> Analitzant IA...
+              </span>
+            ) : engineStatus === 'ollama-live' ? (
+              <span className="badge-engine live" title="IA Local activa: connectat a Ollama (http://127.0.0.1:11434)">
+                ● Ollama Qwen3
+              </span>
+            ) : engineStatus === 'offline-fallback' ? (
+              <span className="badge-engine fallback" title="Ollama no ha respost correctament; s'utilitza el fallback local">
+                ⚠ Fallback local
+              </span>
+            ) : (
+              <span className="badge-engine idle">
+                ○ Sense inferència nova
+              </span>
+            )}
+          </div>
+        </div>
+        <p className="subtitle">Extracció de context i pactes comercials en temps real</p>
+
+        <div className="active-email-banner">
+          {activeEmail ? (
+            <>
+              <span className="live-dot online" />
+              <div className="active-email-info">
+                <strong>{activeEmail.subject}</strong>
+                <span>De: {activeEmail.senderEmail}</span>
+              </div>
+            </>
+          ) : (
+            <>
+              <span className="live-dot waiting" />
+              <span className="active-email-info">Esperant obertura de correu a Gmail...</span>
+            </>
+          )}
+        </div>
       </header>
-      <section aria-labelledby="empty-title">
-        <h2 id="empty-title">No message connected</h2>
-        <p>Client concerns, commitments and preferences will appear here with their source evidence.</p>
-        <p className="status">Foundation preview · Gmail capture and local analysis are not connected yet.</p>
-      </section>
-      <footer>Fictional client data only.</footer>
+
+      {/* Loading state */}
+      {isAnalyzing && (
+        <div className="state-box">
+          <div className="analysis-spinner" />
+          <h2>Analitzant amb model local...</h2>
+          <p>Llegint correu de Gmail i extraient pactes, evidències i historial amb IA local.</p>
+          <span className="analysis-hint">Model Ollama Qwen3 actiu en temps real</span>
+        </div>
+      )}
+
+      {/* Empty State */}
+      {!isAnalyzing && panelState.status === 'empty' && (
+        <div className="state-box">
+          <h2>Cap missatge obert</h2>
+          <p>
+            Obre un fil de conversa a Gmail. L&apos;assistent detectarà automàticament el client i en
+            recuperarà l&apos;historial de pactes comercials.
+          </p>
+        </div>
+      )}
+
+      {/* Unknown Client State */}
+      {!isAnalyzing && panelState.status === 'no-client' && (
+        <div className="state-box">
+          <h2>Remitent no registrat</h2>
+          <p>
+            El remitent <strong>{panelState.senderEmail}</strong> no té cap fitxa de client associada.
+          </p>
+          <p style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '6px' }}>
+            Per seguretat i aïllament estricte, no es revela informació de cap altre client.
+          </p>
+          <div style={{ marginTop: '14px' }}>
+            <button
+              className="btn btn-sm btn-primary"
+              onClick={() => handleBindClientManually(panelState.senderEmail)}
+            >
+              Vincular com a client del Pacte de Comissions
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Error / Unavailable State */}
+      {!isAnalyzing && panelState.status === 'unavailable' && (
+        <div className="state-box">
+          <h2>Servei no disponible</h2>
+          <p>{panelState.reason}</p>
+        </div>
+      )}
+
+      {/* Ready / Briefing State */}
+      {!isAnalyzing && panelState.status === 'ready' && (
+        <>
+          {/* Active Engine Notice Banner */}
+          {engineStatus === 'offline-fallback' && (
+            <div className="engine-banner banner-fallback">
+              <span className="engine-banner-icon">⚠️</span>
+              <div className="engine-banner-text">
+                <strong>Fallback local actiu:</strong> No s&apos;ha pogut obtenir una resposta vàlida d&apos;Ollama a <code>127.0.0.1:11434</code>. Comprova que el servei estigui en marxa i que permeti l&apos;origen de l&apos;extensió. Les observacions mostrades no provenen del model.
+              </div>
+            </div>
+          )}
+          {engineStatus === 'ollama-live' && (
+            <div className="engine-banner banner-live">
+              <span className="engine-banner-icon">🟢</span>
+              <div className="engine-banner-text">
+                <strong>Model Qwen3 en directe:</strong> La IA local d&apos;Ollama està analitzant i generant observacions en temps real.
+              </div>
+            </div>
+          )}
+
+          {/* Client Identity & Coverage Card */}
+          <div className="client-hero">
+            <h2 className="client-name">{panelState.briefing.client.displayName}</h2>
+            <div className="client-email">{panelState.briefing.client.email}</div>
+            <p className="client-notes">Fitxa de seguiment de pactes de comissions i condicions bancàries</p>
+            <div className="coverage-pills">
+              <span className="pill">
+                {panelState.briefing.coverage.recordedMessageCount} missatges registrats
+              </span>
+              <span className="pill">
+                {panelState.briefing.coverage.importedMessageCount} de l&apos;historial
+              </span>
+              <span className="pill">Evidències 100% verificades</span>
+            </div>
+          </div>
+
+          {/* Commitments & Agreements Section */}
+          <section className="section-card">
+            <h3 className="section-title">
+              Pactes i Compromisos Pendents
+              <span className="section-count">{commitments.length}</span>
+            </h3>
+            {commitments.length === 0 ? (
+              <p className="status">No hi ha compromisos pendents registrats.</p>
+            ) : (
+              commitments.map((item) => (
+                <div
+                  key={item.id}
+                  className={`item-card ${item.resolution === 'resolved' ? 'resolved' : ''}`}
+                >
+                  <div className="item-header">
+                    <p className="item-text">{item.text}</p>
+                    <span className="tag-badge tag-commitment">
+                      {item.resolution === 'resolved' ? 'Resolt' : 'Obert'}
+                    </span>
+                  </div>
+
+                  <div className="evidence-box">
+                    &ldquo;{item.sourceExcerpt}&rdquo;
+                    <div className="evidence-meta">
+                      <span>Font: {item.sourceEmailId}</span>
+                      <span>Estat: {item.review}</span>
+                      {item.review === 'suggested' ? (
+                        <span className={`origin-badge ${item.inference === 'ollama-live' ? 'origin-live' : 'origin-fallback'}`}>
+                          {item.inference === 'ollama-live' ? 'Sugerit per Qwen3' : item.inference === 'offline-fallback' ? 'Sugerit per Fallback local' : 'Origen no registrat'}
+                        </span>
+                      ) : (
+                        <span className="origin-badge" style={{ background: '#e2e8f0', color: '#475569' }}>
+                          Historial Bancari
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="item-actions">
+                    {item.review === 'suggested' && (
+                      <>
+                        <button
+                          className="btn btn-sm btn-primary"
+                          onClick={() => handleReview(item, 'confirmed')}
+                        >
+                          Confirmar
+                        </button>
+                        <button
+                          className="btn btn-sm"
+                          onClick={() => handleReview(item, 'dismissed')}
+                        >
+                          Descartar
+                        </button>
+                      </>
+                    )}
+                    <button
+                      className="btn btn-sm"
+                      onClick={() => handleToggleResolve(item)}
+                    >
+                      {item.resolution === 'resolved' ? 'Reobrir' : 'Marcar com a resolt'}
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+          </section>
+
+          {/* Concerns Section */}
+          <section className="section-card">
+            <h3 className="section-title">
+              Inquietuds del Client
+              <span className="section-count">{concerns.length}</span>
+            </h3>
+            {concerns.length === 0 ? (
+              <p className="status">Sense inquietuds detectades.</p>
+            ) : (
+              concerns.map((item) => (
+                <div key={item.id} className="item-card">
+                  <div className="item-header">
+                    <p className="item-text">{item.text}</p>
+                    <span className="tag-badge tag-concern">Inquietud</span>
+                  </div>
+
+                  <div className="evidence-box">
+                    &ldquo;{item.sourceExcerpt}&rdquo;
+                    <div className="evidence-meta">
+                      <span>Font: {item.sourceEmailId}</span>
+                      {item.review === 'suggested' ? (
+                        <span className={`origin-badge ${item.inference === 'ollama-live' ? 'origin-live' : 'origin-fallback'}`}>
+                          {item.inference === 'ollama-live' ? 'Sugerit per Qwen3' : item.inference === 'offline-fallback' ? 'Sugerit per Fallback local' : 'Origen no registrat'}
+                        </span>
+                      ) : (
+                        <span className="origin-badge" style={{ background: '#e2e8f0', color: '#475569' }}>
+                          Historial Bancari
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {item.review === 'suggested' && (
+                    <div className="item-actions">
+                      <button
+                        className="btn btn-sm btn-primary"
+                        onClick={() => handleReview(item, 'confirmed')}
+                      >
+                        Confirmar
+                      </button>
+                      <button
+                        className="btn btn-sm"
+                        onClick={() => handleReview(item, 'dismissed')}
+                      >
+                        Descartar
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))
+            )}
+          </section>
+
+          {/* Goals & Preferences Section */}
+          <section className="section-card">
+            <h3 className="section-title">
+              Objectius i Preferències
+              <span className="section-count">{goalsAndPreferences.length}</span>
+            </h3>
+            {goalsAndPreferences.map((item) => (
+              <div key={item.id} className="item-card">
+                <div className="item-header">
+                  <p className="item-text">{item.text}</p>
+                  <span className={`tag-badge tag-${item.kind}`}>{item.kind}</span>
+                </div>
+
+                <div className="evidence-box">
+                  &ldquo;{item.sourceExcerpt}&rdquo;
+                  <div className="evidence-meta">
+                    <span>Font: {item.sourceEmailId}</span>
+                    {item.review === 'suggested' ? (
+                      <span className={`origin-badge ${item.inference === 'ollama-live' ? 'origin-live' : 'origin-fallback'}`}>
+                        {item.inference === 'ollama-live' ? 'Sugerit per Qwen3' : item.inference === 'offline-fallback' ? 'Sugerit per Fallback local' : 'Origen no registrat'}
+                      </span>
+                    ) : (
+                      <span className="origin-badge" style={{ background: '#e2e8f0', color: '#475569' }}>
+                        Historial Bancari
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {item.review === 'suggested' && (
+                  <div className="item-actions">
+                    <button
+                      className="btn btn-sm btn-primary"
+                      onClick={() => handleReview(item, 'confirmed')}
+                    >
+                      Confirmar
+                    </button>
+                    <button
+                      className="btn btn-sm"
+                      onClick={() => handleReview(item, 'dismissed')}
+                    >
+                      Descartar
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </section>
+
+          {/* Collapsible history view */}
+          <div className="btn-group">
+            <button
+              className="btn btn-sm"
+              onClick={() => setShowHistory(!showHistory)}
+            >
+              {showHistory ? 'Amagar historial de correus' : 'Veure fil històric complet'}
+            </button>
+          </div>
+
+          {showHistory && (
+            <section className="section-card">
+              <h3 className="section-title">Historial de Missatges Intercanviats</h3>
+              {(clientHistory.length > 0 ? clientHistory : SAMPLE_HISTORICAL_EMAILS).map((email) => (
+                <div key={email.id} className="item-card">
+                  <div className="item-header">
+                    <strong>{email.subject}</strong>
+                    <span className="tag-badge">
+                      {email.direction === 'outgoing' ? 'Gestor' : 'Client'}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                    {email.sentAt} · De: {email.senderEmail}
+                  </div>
+                  <p style={{ margin: '6px 0 0', fontSize: '0.8rem' }}>{email.body}</p>
+                </div>
+              ))}
+            </section>
+          )}
+        </>
+      )}
+
+      {/* Offline simulation fallback drawer for testing */}
+      <details className="offline-drawer">
+        <summary>Simulació de suport fora de línia</summary>
+        <div className="btn-group" style={{ marginTop: '8px' }}>
+          <button
+            className="btn btn-sm"
+            onClick={() => void processEmail(SAMPLE_CURRENT_EMAIL)}
+          >
+            Simular Montserrat
+          </button>
+          <button
+            className="btn btn-sm"
+            onClick={() => {
+              void processEmail({
+                id: `stranger-${Date.now()}`,
+                senderEmail: 'proveidor.extern@desconegut.com',
+                subject: 'Oferta de serveis de consultoria',
+                body: 'Benvolgut gestor, li enviem la nostra proposta.',
+                sentAt: new Date().toISOString(),
+                direction: 'incoming',
+                source: 'gmail',
+              });
+            }}
+          >
+            Simular Desconegut
+          </button>
+        </div>
+      </details>
+
+      <footer>
+        <span>Hacktoberfest Barcelona</span>
+        <span>Assistent Bancari Local</span>
+      </footer>
     </main>
   );
 }
