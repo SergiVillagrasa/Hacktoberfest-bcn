@@ -1,10 +1,10 @@
 # Local AI and client-context services
 
-Owner: the other of Albert/Joana after the Gmail/history owner is chosen. Suggested branch: feat/local-ai-profile.
+Owners: Albert and Joana jointly. Suggested branch: feat/local-ai-profile.
 
 ## Outcome and affected areas
 
-Deliver testable client-context use cases in packages/core and concrete Chrome-storage/Ollama adapters in packages/infra. Use shared contracts from packages/contracts. Coordinate entry-point composition with Sergi and history import/capture with the other lane.
+Deliver testable client-context use cases in packages/core and concrete Chrome-storage/Ollama adapters in packages/infra. Use shared contracts from packages/contracts. Coordinate entry-point composition with Sergi and history import/capture with Albert.
 
 ## Approach and dependencies
 

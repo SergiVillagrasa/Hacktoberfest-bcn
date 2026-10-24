@@ -1,6 +1,6 @@
 # Gmail capture and fictional-history import
 
-Owner: Albert or Joana, selected at kickoff. Suggested branch: feat/gmail-context.
+Owners: Albert and Joana jointly. Suggested branch: feat/gmail-context.
 
 ## Outcome and affected areas
 

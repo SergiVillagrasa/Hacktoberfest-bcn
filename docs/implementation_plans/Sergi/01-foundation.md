@@ -1,6 +1,6 @@
 # Sergi: foundation and contract coordination
 
-Branch: feat/sidepanel-shell. Status: implemented; PR and teammate review pending.
+Branch: feat/sidepanel-shell. Status: merged to `main` as PR #1.
 
 ## Outcome and affected areas
 
@@ -17,7 +17,7 @@ evidence, review, coverage and capture-message contracts with boundary validatio
 core port/use-case interfaces; package exports; and an empty side panel opened by
 the toolbar. Add focused validation and client-matching checks. Leave Gmail
 capture, history import, storage, inference and briefing/review implementations
-for the feature lanes. Albert/Joana ownership remains unassigned. Sergi owns
+for the feature work. Albert and Joana contribute across both areas in parallel. Sergi owns
 `apps/extension/lib/` composition and coordinates subsequent contract edits.
 
 ## Verification and completion

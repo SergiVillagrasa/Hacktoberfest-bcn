@@ -1,22 +1,22 @@
 # Implementation plans
 
-Read [architecture.md](../../architecture.md) and [AGENTS.md](../../AGENTS.md) before acting on a plan. These are concise implementation plans prepared for the event, with no Superpowers dependency. The first foundation is being implemented on `feat/sidepanel-shell`; feature-lane services remain planned. See the root README for the current commands and handoff.
+Read [architecture.md](../../architecture.md) and [AGENTS.md](../../AGENTS.md) before acting on a plan. These are concise implementation plans prepared for the event, with no Superpowers dependency. The foundation is merged to `main`. Albert and Joana work together in parallel across the two feature areas; see the root README for current commands and handoff.
 
 ## Shared preparation and work lanes
 
 | Plan | Owner | Outcome |
 |---|---|---|
 | [Kickoff and contracts](shared/00-kickoff-and-contracts.md) | Sergi leads; all three agree | One working Bun/WXT workspace baseline and shared interfaces |
-| [Gmail capture and history](shared/01-gmail-history.md) | Albert or Joana; select at kickoff | Validated current-message capture and labeled fictional-history import |
-| [Local AI and client context](shared/02-local-ai-context.md) | The other of Albert/Joana | Core use cases, local adapters and evidence-backed context |
+| [Gmail capture and history](shared/01-gmail-history.md) | Albert and Joana jointly | Validated current-message capture and labeled fictional-history import |
+| [Local AI and client context](shared/02-local-ai-context.md) | Albert and Joana jointly | Core use cases, local adapters and evidence-backed context |
 
 ## Member plans
 
 - [Sergi](Sergi/README.md): foundation, client briefing panel/integration, and demo readiness.
-- [Albert](Albert/01-feature-lane.md): select one ready-to-use lane with Joana, then implement its contract and main path.
-- [Joana](Joana/01-feature-lane.md): take the complementary lane, then implement its contract and main path.
+- [Albert](Albert/01-feature-lane.md): work with Joana across both feature areas and coordinate concrete tasks.
+- [Joana](Joana/01-feature-lane.md): work with Albert across both feature areas and coordinate concrete tasks.
 
-Record the Albert/Joana lane selection here and in their plans at kickoff. It is intentionally unassigned now. Store plans only here; the old root shortcut was removed.
+The team has agreed that Albert and Joana will work in parallel across both areas. Store plans only here; the old root shortcut was removed.
 
 ## Timing and handoffs
 

@@ -1,22 +1,21 @@
 # Kickoff and shared contracts
 
-Owner: Sergi leads; Albert and Joana participate. Status: foundation implemented on
-`feat/sidepanel-shell`, pending PR review. Lane selection remains open. See
-[Sergi's foundation plan](../Sergi/01-foundation.md) and the root README for the
-implemented exports, commands and verification; the remaining sections retain
-the kickoff approach.
+Owner: Sergi leads; Albert and Joana participate. Status: foundation merged to
+`main`; Albert and Joana will work together in parallel across both feature
+areas. See [Sergi's foundation plan](../Sergi/01-foundation.md) and the root
+README for implemented exports, commands, and verification.
 
 ## Outcome and affected areas
 
-Create the shared baseline for apps/extension and packages/contracts, core and infra in a root Bun workspace. Read architecture.md first; no changes to it are authorized. Assign the Gmail/history lane and AI/context lane between Albert and Joana. Use feat/sidepanel-shell for the foundation.
+The shared baseline for apps/extension and packages/contracts, core and infra is merged to `main`. Albert and Joana contribute across both feature areas in parallel; Sergi coordinates shared contracts and composition. Use focused branches by capability.
 
 ## Approach and dependencies
 
-Create the empty remote repository at the event, retain this preparation folder as its root, and establish the docs baseline before feature work. Scaffold WXT/React/TypeScript in apps/extension without moving workspace packages inside the app. Configure plain CSS, shared package exports and Vitest. Manage dependencies at the root and commit bun.lock. Agree on usable root dev, typecheck, test and build scripts.
+The repository, workspace, and WXT/React/TypeScript shell are already in place. Use the root Bun workspace and lockfile, Vitest, and plain CSS. Continue feature work on focused capability branches from `main`.
 
-Align the contracts before splitting: message IDs, sender, direction, optional date and source; client identity; suggested versus confirmed context; source evidence; incomplete-history/unknown states; and validated extension message envelopes. Contracts remain framework independent. Define the core ports and use-case signatures needed by the two lanes, leaving Chrome/Ollama implementations in infra.
+The foundation defines contracts for message IDs, sender, direction, optional date and source; client identity; review states; source evidence; coverage/unknown states; and validated extension message envelopes. Contracts remain framework independent. Core port and use-case signatures support both feature areas; Chrome/Ollama implementations live in infra.
 
-Agree on panel-to-service actions for importing history, analyzing the selected email, reviewing context and resolving an item. Each handler calls one core use case. Decide the composition-root file ownership with Sergi to avoid parallel edits. Establish the simplest working side panel and UI states so features can integrate incrementally.
+Implement panel-to-service actions for importing history, analyzing the selected email, reviewing context, and resolving an item. Each handler calls one core use case. Sergi coordinates composition-root edits; Albert and Joana agree task boundaries before overlapping file changes.
 
 ## Verification and useful PR boundary
 
