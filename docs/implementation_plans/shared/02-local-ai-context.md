@@ -21,3 +21,14 @@ Persist via Chrome storage adapters, analyze unchanged messages once, and keep c
 Use fake ports to verify client isolation, rejection of a source from another client, invalid JSON/shape handling, literal-excerpt validation, review-state transitions, resolution and incomplete-history behavior. Check that a real local Ollama call produces usable context on the fictional sample. Exercise adapter failures without marking fallback output live or inferred facts confirmed.
 
 Core context/review rules can form one useful PR, and working local adapters plus analysis can form another. Hand Sergi a stable core API and injected adapters; keep rules out of React, handlers and storage/model code. Reply drafting is optional after the briefing path works.
+
+## Local Ollama connection handoff
+
+The reconciled branch retains the team's prompt, processing indicator and cache
+work. Loopback host permissions and the server's exact extension-origin allowlist
+are required. Qwen thinking is disabled; generation is bounded and the adapter
+allows 60 seconds for CPU inference. Invalid response JSON follows the labeled
+fallback path rather than being marked live. Verification is recorded in PR #4:
+local adapter inference with fallback disabled, core excerpt validation, targeted
+fallback-provenance regression tests, workspace checks and a generated-manifest
+inspection. A visible Chrome sidebar rehearsal remains a separate acceptance step.

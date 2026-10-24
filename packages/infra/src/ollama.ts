@@ -16,7 +16,7 @@ export interface OllamaAdapterConfig {
 const DEFAULT_CONFIG: Required<OllamaAdapterConfig> = {
   baseUrl: 'http://127.0.0.1:11434',
   model: 'qwen3:1.7b',
-  timeoutMs: 10_000,
+  timeoutMs: 60_000,
   useFallbackOnOffline: true,
 };
 
@@ -43,16 +43,17 @@ export class OllamaInferenceAdapter implements InferencePort {
   }
 
   async checkOllamaHealth(): Promise<boolean> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 3500);
     try {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 3500);
       const res = await fetch(`${this.config.baseUrl}/api/tags`, {
         signal: controller.signal,
       });
-      clearTimeout(timer);
       return res.ok;
     } catch {
       return false;
+    } finally {
+      clearTimeout(timer);
     }
   }
 
@@ -107,9 +108,9 @@ ${sourcesSummary}
 
 Extract up to 2 observations as JSON now.`;
 
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), this.config.timeoutMs);
     try {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), this.config.timeoutMs);
 
       const response = await fetch(`${this.config.baseUrl}/api/chat`, {
         method: 'POST',
@@ -120,7 +121,7 @@ Extract up to 2 observations as JSON now.`;
           format: 'json',
           think: false, // CRITICAL: disables Qwen3 internal chain-of-thought to prevent CPU timeout
           options: {
-            num_predict: 140,
+            num_predict: 400,
             temperature: 0.1,
           },
           messages: [
@@ -131,15 +132,13 @@ Extract up to 2 observations as JSON now.`;
         signal: controller.signal,
       });
 
-      clearTimeout(timer);
-
       if (!response.ok) {
         throw new Error(`Ollama HTTP error ${response.status}: ${response.statusText}`);
       }
 
       const data = (await response.json()) as { message?: { content?: string } };
       const rawContent = data.message?.content || '{}';
-      const candidates = this.parseCandidateResponse(rawContent, input.email, input.sources);
+      const candidates = this.parseCandidateResponse(rawContent);
       this.lastInferenceMode = 'ollama-live';
       return candidates;
     } catch (error) {
@@ -148,36 +147,29 @@ Extract up to 2 observations as JSON now.`;
         return this.getOfflineFallbackCandidates(input.email, input.sources);
       }
       throw error;
+    } finally {
+      clearTimeout(timer);
     }
   }
 
-  private parseCandidateResponse(
-    rawJson: string,
-    currentEmail: EmailContext,
-    sources: readonly EmailContext[]
-  ): ContextCandidate[] {
-    let itemsArray: unknown[] = [];
+  private parseCandidateResponse(rawJson: string): ContextCandidate[] {
+    let parsed: unknown;
     try {
-      const parsed = JSON.parse(rawJson) as { items?: unknown[] };
-      if (Array.isArray(parsed.items)) {
-        itemsArray = parsed.items;
-      }
+      parsed = JSON.parse(rawJson);
     } catch {
-      // If generation was cut short, salvage completed item objects
-      const matches = rawJson.match(/\{[^{}]*"kind"[^{}]*"text"[^{}]*"sourceEmailId"[^{}]*"sourceExcerpt"[^{}]*\}/g);
-      if (matches) {
-        for (const m of matches) {
-          try {
-            itemsArray.push(JSON.parse(m));
-          } catch {
-            // ignore malformed fragment
-          }
-        }
-      }
+      throw new Error('Ollama returned invalid JSON');
+    }
+    if (
+      typeof parsed !== 'object' ||
+      parsed === null ||
+      !('items' in parsed) ||
+      !Array.isArray(parsed.items)
+    ) {
+      throw new Error('Ollama returned an invalid response shape');
     }
 
     const candidates: ContextCandidate[] = [];
-    for (const item of itemsArray) {
+    for (const item of parsed.items) {
       if (typeof item !== 'object' || item === null) continue;
       const candidate = item as Record<string, unknown>;
 
@@ -196,11 +188,6 @@ Extract up to 2 observations as JSON now.`;
       ) {
         candidates.push({ kind, text, sourceEmailId, sourceExcerpt });
       }
-    }
-
-    if (candidates.length === 0 && this.config.useFallbackOnOffline) {
-      this.lastInferenceMode = 'offline-fallback';
-      return this.getOfflineFallbackCandidates(currentEmail, sources);
     }
 
     return candidates.slice(0, 5);

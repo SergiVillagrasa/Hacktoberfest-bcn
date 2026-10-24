@@ -203,7 +203,7 @@ export function App() {
           <h1>Assessor Bancari AI</h1>
           <div className="engine-status-badge-wrapper">
             {isAnalyzing ? (
-              <span className="badge-engine analyzing" title="Processant correu amb IA local (màx. 10s)...">
+              <span className="badge-engine analyzing" title="Processant correu amb IA local (màx. 60s)...">
                 <span className="pulse-spinner" /> Analitzant IA...
               </span>
             ) : engineStatus === 'ollama-live' ? (
@@ -211,8 +211,8 @@ export function App() {
                 ● Ollama Qwen3
               </span>
             ) : engineStatus === 'offline-fallback' ? (
-              <span className="badge-engine fallback" title="Ollama offline o lent: Utilitzant motor de seguretat offline amb cites literals">
-                ⚠ Fallback Offline
+              <span className="badge-engine fallback" title="Ollama no ha respost correctament; s'utilitza el fallback local">
+                ⚠ Fallback local
               </span>
             ) : (
               <span className="badge-engine idle">
@@ -299,7 +299,7 @@ export function App() {
             <div className="engine-banner banner-fallback">
               <span className="engine-banner-icon">⚠️</span>
               <div className="engine-banner-text">
-                <strong>Mode Fallback Offline actiu:</strong> Ollama no ha respost a temps (&gt; 10s) o està fora de línia a <code>127.0.0.1:11434</code>. L&apos;assistent ha aplicat el motor de seguretat amb cites literals per garantir la continuïtat del servei.
+                <strong>Fallback local actiu:</strong> No s&apos;ha pogut obtenir una resposta vàlida d&apos;Ollama a <code>127.0.0.1:11434</code>. Comprova que el servei estigui en marxa i que permeti l&apos;origen de l&apos;extensió. Les observacions mostrades no provenen del model.
               </div>
             </div>
           )}

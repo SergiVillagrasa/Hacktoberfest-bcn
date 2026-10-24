@@ -148,7 +148,7 @@ h1 { margin: 0; font-size: 1.25rem; font-weight: 700; color: #0f172a; }
 
 .evidence-box {
   background: #ffffff;
-  border-left: 3px solid #3b82f6;
+  border-left: 1px solid #cbd5e1;
   border-radius: 0 4px 4px 0;
   padding: 6px 10px;
   font-size: 0.8rem;
