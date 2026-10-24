@@ -10,7 +10,7 @@ relevant PR or demo notes; this page tracks completion, not implementation detai
   and build pass, and the side panel opens in Chrome.
 - [x] The collaboration plan is agreed: Albert and Joana will work in parallel
   across both areas; Sergi coordinates shared contracts and integration.
-- [ ] The team sends [the fictional message set](gmail-test-messages.md) to a
+- [x] The team sends [the fictional message set](gmail-test-messages.md) to a
   dedicated test inbox. It covers a client concern, manager promise, stated
   goal/preference, and an unknown sender.
 
@@ -18,8 +18,11 @@ relevant PR or demo notes; this page tracks completion, not implementation detai
 
 - [ ] Gmail capture reads only the currently open fictional message; navigation
   clears stale context, and malformed or repeated captures are handled safely.
-- [ ] Imported history is clearly labeled and preserves message IDs, direction,
-  available dates, and source excerpts; missing history or dates stay unknown.
+- [ ] Opening a client message loads all that client's locally captured or
+  explicitly imported history, including manager replies. Coverage and import
+  labels are clear; message IDs, direction, dates, and excerpts are preserved.
+  Missing history or dates stay unknown, and the inbox is not implied to be
+  fully synced.
 - [ ] Exact sender matching selects the right client, and an unknown sender
   never sees another client's history.
 

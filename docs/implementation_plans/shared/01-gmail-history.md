@@ -12,7 +12,7 @@ Depend on the shared foundation's email/message envelopes and history port. Keep
 
 Create the synthetic history at the event. Import a small client-specific dataset with stable message IDs, source labels and available dates. Include outgoing manager messages where promises are needed and a second client or unknown sender for isolation checks. Import transport/shape handling belongs in infra; attribution, duplicate policy and business acceptance belong in core. Coordinate those rules with the AI/context lane.
 
-Label imported history in the panel data. Capture only the visible current Gmail message; do not imply mailbox-wide collection. Expose a clearly labeled sample-message fallback when extraction fails. Do not fabricate unavailable dates or treat a partial thread as complete history.
+When a client message is opened, exact-match its sender and load all messages already captured or explicitly imported for that client through the history port, including outgoing manager messages. Show how much history is available and label imported sources. The Gmail inbox itself is not searched, so do not imply that local history contains every message in Gmail. Capture only the visible current message; do not imply mailbox-wide collection. Expose a clearly labeled sample-message fallback when extraction fails. Do not fabricate unavailable dates or treat a partial thread as complete history.
 
 ## Verification and useful PR boundaries
 
