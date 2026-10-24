@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import type {
   CaptureMessage,
   ContextItem,
@@ -19,8 +19,11 @@ import {
   type InferenceEngineStatus,
 } from '@briefing/infra';
 import '../../assets/panel.css';
+import { browser } from 'wxt/browser';
+import { SelectionGuard } from '../../lib/selection-guard';
 
 export function App() {
+  const selection = useRef(new SelectionGuard()).current;
   const profilePort = useMemo(() => new LocalStorageProfilePort(), []);
   const historyPort = useMemo(() => new LocalStorageHistoryPort(), []);
   const inferenceAdapter = useMemo(
@@ -44,15 +47,6 @@ export function App() {
   const [clientHistory, setClientHistory] = useState<EmailContext[]>([]);
   const [engineStatus, setEngineStatus] = useState<InferenceEngineStatus>('idle');
 
-  // Check Ollama daemon health on startup
-  useEffect(() => {
-    async function checkHealth() {
-      const isLive = await inferenceAdapter.checkOllamaHealth();
-      setEngineStatus(isLive ? 'ollama-live' : 'offline-fallback');
-    }
-    void checkHealth();
-  }, [inferenceAdapter]);
-
   // Seed default demo client if empty
   useEffect(() => {
     async function initData() {
@@ -66,10 +60,15 @@ export function App() {
   }, [profilePort, historyPort]);
 
   const processEmail = useCallback(
-    async (email: EmailContext) => {
+    async (email: EmailContext, requestId: string = crypto.randomUUID()) => {
+      const generation = selection.begin();
+      const current = () => selection.isCurrent(generation);
+      setClientHistory([]);
+      setEngineStatus('idle');
+      setShowHistory(false);
       setActiveEmail(email);
       setIsAnalyzing(true);
-      setPanelState({ status: 'loading', requestId: email.id });
+      setPanelState({ status: 'loading', requestId });
 
       try {
         let profile = await profilePort.findByEmail(email.senderEmail);
@@ -95,6 +94,7 @@ export function App() {
           }
         }
 
+        if (!current()) return;
         if (!profile) {
           setPanelState({ status: 'no-client', senderEmail: email.senderEmail });
           setIsAnalyzing(false);
@@ -103,27 +103,34 @@ export function App() {
 
         // Save visible message and run AI analysis
         await service.captureEmail(email);
-        await service.analyzeEmail(email, profile);
-        setEngineStatus(inferenceAdapter.getLastInferenceMode());
+        if (!current()) return;
+        const analysis = await service.analyzeEmail(email, profile);
+        if (!current()) return;
+        const modes = analysis.status === 'analyzed' ? analysis.suggestions.map((item) => item.inference) : [];
+        setEngineStatus(modes.includes('offline-fallback') ? 'offline-fallback'
+          : modes.length > 0 && modes.every((mode) => mode === 'ollama-live') ? 'ollama-live' : 'idle');
 
         const briefing = await service.getBriefing(email.senderEmail);
+        if (!current()) return;
         if (briefing) {
-          setPanelState({ status: 'ready', requestId: email.id, briefing });
           const { emails: hist } = await historyPort.list(profile.id);
+          if (!current()) return;
+          setPanelState({ status: 'ready', requestId, briefing });
           setClientHistory(hist);
         } else {
           setPanelState({ status: 'no-client', senderEmail: email.senderEmail });
         }
       } catch (err) {
+        if (!current()) return;
         setPanelState({
           status: 'unavailable',
           reason: err instanceof Error ? err.message : 'Error desconegut durant l\'anàlisi',
         });
       } finally {
-        setIsAnalyzing(false);
+        if (current()) setIsAnalyzing(false);
       }
     },
-    [profilePort, historyPort, inferenceAdapter, service]
+    [profilePort, historyPort, inferenceAdapter, service, selection]
   );
 
   // Listen for Gmail messages from the content script
@@ -132,49 +139,65 @@ export function App() {
     const chromeApi = (globalThis as any).chrome;
     if (!chromeApi?.runtime?.onMessage) return;
 
-    function handleMessage(message: unknown) {
+    function handleMessage(message: unknown, sender?: { id?: string; url?: string; tab?: { active?: boolean } }) {
+      if (sender && (sender.id !== browser.runtime.id || !sender.url?.startsWith('https://mail.google.com/') || !sender.tab?.active)) return;
       if (!isCaptureMessage(message)) return;
       const capture = message as CaptureMessage;
 
       if (capture.type === 'email/cleared') {
+        selection.begin();
+        setEngineStatus('idle');
+        setClientHistory([]);
+        setShowHistory(false);
+        setIsAnalyzing(false);
         setActiveEmail(null);
         setPanelState({ status: 'empty' });
       } else if (capture.type === 'email/captured') {
-        void processEmail(capture.email);
+        void processEmail(capture.email, capture.requestId);
       }
     }
 
     chromeApi.runtime.onMessage.addListener(handleMessage);
+    const generation = selection.snapshot();
+    void browser.tabs.query({ active: true, currentWindow: true }).then(async ([tab]) => {
+      if (tab?.id === undefined) return;
+      const replay: unknown = await browser.tabs.sendMessage(tab.id, { type: 'capture/current' });
+      if (selection.isCurrent(generation)) handleMessage(replay);
+    }).catch(() => {});
     return () => {
+      selection.begin();
       chromeApi.runtime.onMessage.removeListener(handleMessage);
     };
-  }, [processEmail]);
+  }, [processEmail, selection]);
 
   // Actions for manager review & resolution
   const handleReview = async (item: ContextItem, review: 'confirmed' | 'dismissed') => {
     if (panelState.status !== 'ready') return;
+    const generation = selection.snapshot();
     await service.reviewItem(panelState.briefing.client.id, item.id, review);
     const updated = await service.getBriefing(panelState.briefing.client.email);
-    if (updated) {
+    if (selection.isCurrent(generation) && updated) {
       setPanelState({ status: 'ready', requestId: panelState.requestId, briefing: updated });
     }
   };
 
   const handleToggleResolve = async (item: ContextItem) => {
     if (panelState.status !== 'ready') return;
-    await service.resolveItem(panelState.briefing.client.id, item.id);
+    const generation = selection.snapshot();
+    await service.resolveItem(panelState.briefing.client.id, item.id, item.resolution === 'resolved' ? 'open' : 'resolved');
     const updated = await service.getBriefing(panelState.briefing.client.email);
-    if (updated) {
+    if (selection.isCurrent(generation) && updated) {
       setPanelState({ status: 'ready', requestId: panelState.requestId, briefing: updated });
     }
   };
 
   const handleBindClientManually = async (emailAddress: string) => {
+    const generation = selection.snapshot();
     const profile = createClientProfileForTestInbox(emailAddress);
     const initialHistory = createHistoricalEmailsForTestInbox(emailAddress);
     await profilePort.save(profile);
     await historyPort.save(profile.id, initialHistory);
-    if (activeEmail) {
+    if (selection.isCurrent(generation) && activeEmail) {
       void processEmail(activeEmail);
     }
   };
@@ -216,7 +239,7 @@ export function App() {
               </span>
             ) : (
               <span className="badge-engine idle">
-                ○ Comprovant IA...
+                ○ Sense inferència nova
               </span>
             )}
           </div>
@@ -355,8 +378,8 @@ export function App() {
                       <span>Font: {item.sourceEmailId}</span>
                       <span>Estat: {item.review}</span>
                       {item.review === 'suggested' ? (
-                        <span className={`origin-badge ${engineStatus === 'ollama-live' ? 'origin-live' : 'origin-fallback'}`}>
-                          {engineStatus === 'ollama-live' ? 'Sugerit per Qwen3' : 'Sugerit per Fallback Offline'}
+                        <span className={`origin-badge ${item.inference === 'ollama-live' ? 'origin-live' : 'origin-fallback'}`}>
+                          {item.inference === 'ollama-live' ? 'Sugerit per Qwen3' : item.inference === 'offline-fallback' ? 'Sugerit per Fallback local' : 'Origen no registrat'}
                         </span>
                       ) : (
                         <span className="origin-badge" style={{ background: '#e2e8f0', color: '#475569' }}>
@@ -416,8 +439,8 @@ export function App() {
                     <div className="evidence-meta">
                       <span>Font: {item.sourceEmailId}</span>
                       {item.review === 'suggested' ? (
-                        <span className={`origin-badge ${engineStatus === 'ollama-live' ? 'origin-live' : 'origin-fallback'}`}>
-                          {engineStatus === 'ollama-live' ? 'Sugerit per Qwen3' : 'Sugerit per Fallback Offline'}
+                        <span className={`origin-badge ${item.inference === 'ollama-live' ? 'origin-live' : 'origin-fallback'}`}>
+                          {item.inference === 'ollama-live' ? 'Sugerit per Qwen3' : item.inference === 'offline-fallback' ? 'Sugerit per Fallback local' : 'Origen no registrat'}
                         </span>
                       ) : (
                         <span className="origin-badge" style={{ background: '#e2e8f0', color: '#475569' }}>
@@ -466,8 +489,8 @@ export function App() {
                   <div className="evidence-meta">
                     <span>Font: {item.sourceEmailId}</span>
                     {item.review === 'suggested' ? (
-                      <span className={`origin-badge ${engineStatus === 'ollama-live' ? 'origin-live' : 'origin-fallback'}`}>
-                        {engineStatus === 'ollama-live' ? 'Sugerit per Qwen3' : 'Sugerit per Fallback Offline'}
+                      <span className={`origin-badge ${item.inference === 'ollama-live' ? 'origin-live' : 'origin-fallback'}`}>
+                        {item.inference === 'ollama-live' ? 'Sugerit per Qwen3' : item.inference === 'offline-fallback' ? 'Sugerit per Fallback local' : 'Origen no registrat'}
                       </span>
                     ) : (
                       <span className="origin-badge" style={{ background: '#e2e8f0', color: '#475569' }}>

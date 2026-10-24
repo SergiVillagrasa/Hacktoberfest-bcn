@@ -148,11 +148,11 @@ Extract up to 2 observations as JSON now.`;
       const rawContent = data.message?.content || '{}';
       const candidates = this.parseCandidateResponse(rawContent);
       this.lastInferenceMode = 'ollama-live';
-      return candidates;
+      return candidates.map((item) => ({ ...item, inference: 'ollama-live' as const }));
     } catch (error) {
       if (this.config.useFallbackOnOffline) {
         this.lastInferenceMode = 'offline-fallback';
-        return this.getOfflineFallbackCandidates(input.email, input.sources);
+        return this.getOfflineFallbackCandidates(input.email, input.sources).map((item) => ({ ...item, inference: 'offline-fallback' as const }));
       }
       throw error;
     } finally {

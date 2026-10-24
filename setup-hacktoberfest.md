@@ -87,8 +87,8 @@ Environment="OLLAMA_ORIGINS=chrome-extension://<extension-id>"
 Then run `sudo systemctl daemon-reload` and `sudo systemctl restart ollama`.
 If the editor reports empty contents, the override was not saved. Keep existing
 origin values if other local applications use them. The adapter disables Qwen
-thinking, bounds output generation, and allows up to 60 seconds for local
-analysis. Invalid responses and connection failures use a visibly labeled text
+thinking, bounds output generation, and waits for model completion by default. An
+explicit `timeoutMs` adapter setting can impose a deadline when needed. Invalid responses and connection failures use a visibly labeled text
 fallback.
 
 Tool installation and model download can be done ahead of time. The event description says work on the project submission must start at the event, so do not prepare project code or the sample inbox beforehand.

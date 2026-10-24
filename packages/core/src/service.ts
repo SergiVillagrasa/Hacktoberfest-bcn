@@ -21,6 +21,9 @@ export interface ServiceDependencies {
   inferencePort: InferencePort;
 }
 
+// Share the write queue across service instances using the same repository.
+const writes = new WeakMap<ProfilePort, Map<string, Promise<unknown>>>();
+
 export class ClientContextService implements ClientContextUseCases {
   constructor(private readonly deps: ServiceDependencies) {}
 
@@ -28,32 +31,24 @@ export class ClientContextService implements ClientContextUseCases {
     const profile = await this.deps.profilePort.findByEmail(email.senderEmail);
     if (!profile) return;
 
-    const { emails } = await this.deps.historyPort.list(profile.id);
-    if (emails.some((e) => e.id === email.id)) return;
-
-    const updated = [email, ...emails];
-    await this.deps.historyPort.save(profile.id, updated);
+    await this.withClientWrite(profile.id, async () => {
+      const { emails } = await this.deps.historyPort.list(profile.id);
+      const updated = [email, ...emails.filter((stored) => stored.id !== email.id)];
+      await this.deps.historyPort.save(profile.id, updated);
+    });
   }
 
   async importHistory(clientId: string, emails: readonly EmailContext[]): Promise<HistoryCoverage> {
-    const coverage = computeCoverage(emails);
-    await this.deps.historyPort.save(clientId, emails);
-    return coverage;
+    return this.withClientWrite(clientId, async () => {
+      await this.deps.historyPort.save(clientId, emails);
+      return computeCoverage(emails);
+    });
   }
 
   async analyzeEmail(email: EmailContext, profile: ClientProfile): Promise<AnalysisResult> {
     // Client isolation check: exact sender email match
     if (email.direction === 'incoming' && email.senderEmail !== profile.email) {
       return { status: 'no-client' };
-    }
-
-    // Optimization: If this email has already been analyzed and produced items, return cached analysis immediately
-    if (profile.items.some((item) => item.sourceEmailId === email.id)) {
-      return {
-        status: 'analyzed',
-        clientId: profile.id,
-        suggestions: [],
-      };
     }
 
     const { emails } = await this.deps.historyPort.list(profile.id);
@@ -66,41 +61,36 @@ export class ClientContextService implements ClientContextUseCases {
       sources: allowedSources,
     });
 
-    const validSuggestions: ContextItem[] = [];
-    for (const candidate of candidates) {
-      if (validateCandidateEvidence(candidate, allowedSources)) {
-        // Prevent exact duplicate items
-        const isDuplicate = profile.items.some(
-          (existing: ContextItem) =>
-            existing.kind === candidate.kind &&
-            existing.sourceEmailId === candidate.sourceEmailId &&
-            existing.sourceExcerpt === candidate.sourceExcerpt
-        );
-        if (!isDuplicate) {
-          validSuggestions.push(createSuggestedItem(candidate));
-        }
+    return this.withClientWrite(profile.id, async () => {
+      const latest = await this.deps.profilePort.findByEmail(email.senderEmail);
+      if (!latest || latest.id !== profile.id || latest.email !== profile.email) {
+        return { status: 'no-client' as const };
       }
-    }
-
-    const updatedProfile: ClientProfile = {
-      ...profile,
-      items: [...profile.items, ...validSuggestions],
-    };
-
-    await this.deps.profilePort.save(updatedProfile);
-
-    return {
-      status: 'analyzed',
-      clientId: profile.id,
-      suggestions: validSuggestions,
-    };
+      const { emails: currentHistory } = await this.deps.historyPort.list(profile.id);
+      // Do not commit results for a source that changed while inference was pending.
+      const current = currentHistory.find((stored) => stored.id === email.id);
+      if (current && JSON.stringify(current) !== JSON.stringify(email)) {
+        return { status: 'analyzed' as const, clientId: profile.id, suggestions: [] };
+      }
+      const validSuggestions: ContextItem[] = [];
+      for (const candidate of candidates) {
+        const currentSources = current ? currentHistory : [email, ...currentHistory];
+        if (!validateCandidateEvidence(candidate, allowedSources) || !validateCandidateEvidence(candidate, currentSources)) continue;
+        const duplicate = latest.items.some((existing) =>
+          existing.kind === candidate.kind && existing.sourceEmailId === candidate.sourceEmailId
+          && existing.sourceExcerpt === candidate.sourceExcerpt);
+        if (!duplicate) validSuggestions.push({ ...createSuggestedItem(candidate), inference: candidate.inference ?? 'unknown' });
+      }
+      await this.deps.profilePort.save({ ...latest, items: [...latest.items, ...validSuggestions] });
+      return { status: 'analyzed' as const, clientId: profile.id, suggestions: validSuggestions };
+    });
   }
 
   async getBriefing(senderEmail: string): Promise<ClientBriefing | undefined> {
     const profile = await this.deps.profilePort.findByEmail(senderEmail);
     if (!profile) return undefined;
 
-    const { coverage } = await this.deps.historyPort.list(profile.id);
+    const { coverage, emails } = await this.deps.historyPort.list(profile.id);
 
     return {
       client: {
@@ -109,7 +99,8 @@ export class ClientContextService implements ClientContextUseCases {
         displayName: profile.displayName,
       },
       coverage,
-      items: profile.items,
+      items: profile.items.filter((item) => item.review !== 'dismissed' &&
+        (!emails.some((email) => email.id === item.sourceEmailId) || validateCandidateEvidence(item, emails))),
     };
   }
 
@@ -118,31 +109,32 @@ export class ClientContextService implements ClientContextUseCases {
     itemId: string,
     review: 'confirmed' | 'dismissed'
   ): Promise<void> {
-    const profile = await this.findProfileById(clientId);
-    if (!profile) return;
-
-    const updatedItems = profile.items.map((item: ContextItem) =>
-      item.id === itemId ? { ...item, review } : item
-    );
-
-    await this.deps.profilePort.save({
-      ...profile,
-      items: updatedItems,
+    await this.withClientWrite(clientId, async () => {
+      const profile = await this.findProfileById(clientId);
+      if (!profile) return;
+      await this.deps.profilePort.save({ ...profile, items: profile.items.map((item) =>
+        item.id === itemId ? { ...item, review } : item) });
     });
   }
 
-  async resolveItem(clientId: string, itemId: string): Promise<void> {
-    const profile = await this.findProfileById(clientId);
-    if (!profile) return;
-
-    const updatedItems = profile.items.map((item: ContextItem) =>
-      item.id === itemId ? { ...item, resolution: 'resolved' as const } : item
-    );
-
-    await this.deps.profilePort.save({
-      ...profile,
-      items: updatedItems,
+  async resolveItem(clientId: string, itemId: string, resolution: 'open' | 'resolved' = 'resolved'): Promise<void> {
+    await this.withClientWrite(clientId, async () => {
+      const profile = await this.findProfileById(clientId);
+      if (!profile) return;
+      await this.deps.profilePort.save({ ...profile, items: profile.items.map((item) =>
+        item.id === itemId && (item.kind === 'concern' || item.kind === 'commitment')
+          ? { ...item, resolution } : item) });
     });
+  }
+
+  private withClientWrite<T>(clientId: string, action: () => Promise<T>): Promise<T> {
+    let queue = writes.get(this.deps.profilePort);
+    if (!queue) { queue = new Map(); writes.set(this.deps.profilePort, queue); }
+    const previous = queue.get(clientId) ?? Promise.resolve();
+    const next = previous.catch(() => undefined).then(action);
+    queue.set(clientId, next);
+    void next.finally(() => { if (queue!.get(clientId) === next) queue!.delete(clientId); }).catch(() => undefined);
+    return next;
   }
 
   private async findProfileById(clientId: string): Promise<ClientProfile | undefined> {

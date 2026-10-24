@@ -56,7 +56,7 @@ export interface ClientContextUseCases {
   analyzeEmail(email: EmailContext, profile: ClientProfile): Promise<AnalysisResult>;
   getBriefing(senderEmail: string): Promise<ClientBriefing | undefined>;
   reviewItem(clientId: string, itemId: string, review: 'confirmed' | 'dismissed'): Promise<void>;
-  resolveItem(clientId: string, itemId: string): Promise<void>;
+  resolveItem(clientId: string, itemId: string, resolution?: 'open' | 'resolved'): Promise<void>;
 }
 
 export * from './coverage';

@@ -19,6 +19,7 @@ describe('Ollama inference provenance', () => {
 
     expect(candidates.length).toBeGreaterThan(0);
     expect(adapter.getLastInferenceMode()).toBe('offline-fallback');
+    expect(candidates.every((item) => item.inference === 'offline-fallback')).toBe(true);
   });
 
   it('returns valid model candidates and requests bounded inference without thinking', async () => {
@@ -34,7 +35,7 @@ describe('Ollama inference provenance', () => {
     vi.stubGlobal('fetch', fetchMock);
     const adapter = new OllamaInferenceAdapter();
 
-    expect(await adapter.extract(input)).toEqual([item]);
+    expect(await adapter.extract(input)).toEqual([{ ...item, inference: 'ollama-live' }]);
     expect(adapter.getLastInferenceMode()).toBe('ollama-live');
     const request = JSON.parse(fetchMock.mock.calls[0]![1].body);
     expect(request).toMatchObject({ model: 'qwen3:1.7b', think: false, stream: false });
