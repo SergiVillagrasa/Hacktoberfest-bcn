@@ -1,19 +1,29 @@
-# Albert: feature lane and handoff
+# Albert: shared feature work and handoff
 
-Assignment: intentionally pending until kickoff with Sergi and Joana. This is an executable choice between two prepared high-level plans, not a permanent assignment.
+Assignment: work with Joana across both Gmail/history and local AI/client-context
+in parallel. Coordinate concrete tasks with Joana and shared contracts or
+composition changes with Sergi; no area is reserved for one teammate.
 
 ## Outcome and affected areas
 
-Own one independently useful feature lane through implementation, targeted checks and a reviewable PR. Read architecture.md, AGENTS.md and the [shared kickoff plan](../shared/00-kickoff-and-contracts.md). Agree with Joana which lane each of you owns and record the choice in this plan and the index.
+Contribute across the two independently useful feature areas, targeted checks,
+and reviewable PRs. Read architecture.md, AGENTS.md and the [shared kickoff
+plan](../shared/00-kickoff-and-contracts.md). Before work begins, agree with
+Joana on the tasks you will tackle in parallel and record progress in the PRs.
 
 ## Approach
 
-If taking **Gmail capture/history**, follow [the Gmail/history plan](../shared/01-gmail-history.md) on feat/gmail-context: current-message capture, validated extension messaging, labeled import and fallback. Keep matching/review decisions in core and coordinate import use cases with the other lane.
+For **Gmail capture/history**, follow [the Gmail/history plan](../shared/01-gmail-history.md) on feat/gmail-context: current-message capture, validated extension messaging, labeled import and fallback. Keep matching/review decisions in core; coordinate shared changes with Joana and Sergi.
 
-If taking **AI/client context**, follow [the local AI/context plan](../shared/02-local-ai-context.md) on feat/local-ai-profile: core ports/use cases, local adapters, evidence validation, review and briefing results. Keep platform code out of core and coordinate actual message/history input with the other lane.
+For **AI/client context**, follow [the local AI/context plan](../shared/02-local-ai-context.md) on feat/local-ai-profile: core ports/use cases, local adapters, evidence validation, review and briefing results. Keep platform code out of core; coordinate shared changes with Joana and Sergi.
 
-Build against the shared foundation after it merges. Coordinate contract changes and composition-root edits with Sergi. Provide the other lane with a small stable interface and clearly labeled temporary data, then demonstrate a real handoff before the integration period.
+Build against the merged shared foundation. Albert and Joana can contribute to
+both feature branches in parallel. Agree on concrete file/task boundaries before
+overlapping edits; route contracts and extension composition through Sergi.
 
 ## Verification and completion
 
-Use the chosen lane's verification criteria, run the actual relevant commands and record known gaps. Open PRs when a capture, import, core-context or adapter feature is independently useful. Follow the required local branch/PR skills, ask Sergi to review integration and have Joana check the behavior. Help rehearse the complete demo after your feature merges.
+Use each feature area's verification criteria, run the actual relevant commands,
+and record known gaps. Open focused PRs when capabilities are independently
+useful. Sergi reviews integration and Joana checks behavior; help rehearse the
+complete demo as features merge.

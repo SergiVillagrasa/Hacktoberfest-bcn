@@ -36,8 +36,8 @@ LICENSE                            MIT license for project code
 | Member | Responsibility |
 |---|---|
 | Sergi | Critical path: foundation, contract coordination, React panel and integration |
-| Albert | Feature lane selected with Joana at kickoff |
-| Joana | Complementary feature lane selected with Albert at kickoff |
+| Albert | Parallel work across Gmail/history and local AI/context with Joana |
+| Joana | Parallel work across Gmail/history and local AI/context with Albert |
 
 The two available lanes are Gmail capture/import and local AI/client-context services. Feature plans for both are already written and linked from each member's plan.
 
@@ -71,9 +71,10 @@ does not treat tests as extension entry points.
 
 ## Teammate handoff
 
-After the foundation PR merges, update each local checkout from `main` and create
-the feature branches from that baseline. Albert and Joana choose between
-`feat/gmail-context` and `feat/local-ai-profile`; neither lane is preassigned.
+The foundation is merged to `main`. Update local checkouts from `main`. Albert
+and Joana work in parallel across both `feat/gmail-context` and
+`feat/local-ai-profile`, coordinating task boundaries and shared-contract edits
+with Sergi.
 
 Workspace exports are `@briefing/contracts`, `@briefing/core` and
 `@briefing/infra`. Contracts provides email/source, evidence, review, coverage,

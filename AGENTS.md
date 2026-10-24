@@ -37,7 +37,7 @@ Use the three branch/PR skills required by architecture.md for their respective 
 ## Team and integration
 
 - Sergi owns the shared foundation, contracts coordination, side panel, critical end-to-end path, and integration.
-- Albert and Joana decide their feature lanes at kickoff: one handles Gmail capture/history import, the other local AI/client-context services. Do not assign these lanes permanently in advance.
+- Albert and Joana work together in parallel across Gmail capture/history and local AI/client-context. They coordinate concrete tasks to avoid overlap; Sergi coordinates shared contracts and integration.
 - Define package exports and messages together in the shared foundation PR, then work in separate branches/checkouts. Coordinate edits to contracts and composition files with Sergi.
 - Use focused `feat/<short-slug>` or `fix/<short-slug>` branches in the normal checkout; no git worktrees. The foundation branch is feat/sidepanel-shell.
 - Open feature PRs when independently useful and their main path works. Sergi reviews integration and another teammate checks behavior before merge. Merge with merge commits, preserving a runnable demo path on main once the foundation is available.

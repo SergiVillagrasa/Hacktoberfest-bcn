@@ -9,7 +9,8 @@ Verified tooling: Bun 1.4.3, Node 22.22.2, WXT 0.20.27, React 19.3.1,
 TypeScript 5.9.3 and Vitest 3.2.7. See the [README](README.md#run-locally) for
 Chrome loading and the package/API handoff. The preparation instructions below
 describe the original event plan; capture, model and storage integrations remain
-pending, and Albert/Joana lane selection is still open.
+pending. Albert and Joana will work in parallel across both the Gmail/history
+and local AI/context areas; Sergi coordinates shared contracts and integration.
 
 ## The idea
 
@@ -126,15 +127,15 @@ The core AI use case is `analyzeEmail(email, profile)`, returning suggested cont
 | Teammate | Owns | Suggested branch |
 |---|---|---|
 | Sergi — critical path and integration lead | WXT foundation, shared contract, React side panel and end-to-end integration into `main`; keep the primary demo path working | `feat/sidepanel-shell` |
-| Albert — feature lane to decide at the event | Choose Gmail capture/sample-history import or local AI/client-context work with Joana | Decide tomorrow |
-| Joana — feature lane to decide at the event | Choose Gmail capture/sample-history import or local AI/client-context work with Albert | Decide tomorrow |
+| Albert — shared feature work | Contribute in parallel across Gmail capture/history and local AI/client-context with Joana | `feat/gmail-context`, `feat/local-ai-profile` |
+| Joana — shared feature work | Contribute in parallel across Gmail capture/history and local AI/client-context with Albert | `feat/gmail-context`, `feat/local-ai-profile` |
 
-Sergi owns integration and the core panel path. At the event, Albert and Joana should agree between them who owns the Gmail content script and who owns the local AI/profile modules. Keep those module boundaries clear, share the contract before coding, and have all three review the feature PRs and help resolve integration issues.
+Sergi owns integration and the core panel path. Albert and Joana work together across both feature areas and coordinate their concrete tasks to avoid overlap. They share contract and composition changes with Sergi. Keep package boundaries clear, open focused PRs as capabilities become independently useful, and have the team review behavior and integration.
 
 ## Branch and PR workflow
 
 1. Start from `main` on `feat/sidepanel-shell` and create a root Bun-workspace foundation with WXT + React + TypeScript + Vitest, following the architecture's monorepo. Add the side panel entry point, shared types, package exports and a basic test configuration. Open and merge this useful foundation PR early so everyone can branch from the same base.
-2. Create one feature branch per work lane above. Keep commits focused and avoid editing another lane's files unless the team agrees first.
+2. Create focused feature branches for the Gmail/history and local AI/context capabilities. Albert and Joana can contribute to both in parallel; coordinate edits to the same files before starting them.
 3. Open a PR when a lane is independently useful and its main path works. Include a short summary, how to try it, and any known gap. The integration lead reviews; another teammate checks the behavior.
 4. Merge feature PRs into `main` with merge commits as they are ready, then update the remaining branches from `main`. Keep `main` runnable and demoable after the application foundation merges. Use normal checkouts, not git worktrees; apply the local branch-naming, pr-description and pr-sca skills.
 5. Reserve the final hour for integration, fixing the demo path, and rehearsal. Avoid starting a new feature in that hour.

@@ -6,10 +6,10 @@ relevant PR or demo notes; this page tracks completion, not implementation detai
 
 ## Shared foundation and kickoff
 
-- [x] A fresh checkout installs from the root lockfile, passes the documented
-  checks, builds, and opens the side panel in Chrome.
-- [ ] Albert and Joana choose the Gmail/history and local AI/context lanes
-  between them; the choice and shared-contract agreement are recorded.
+- [x] The foundation is merged to `main`; the documented root install, checks,
+  and build pass, and the side panel opens in Chrome.
+- [x] The collaboration plan is agreed: Albert and Joana will work in parallel
+  across both areas; Sergi coordinates shared contracts and integration.
 - [ ] The team sends [the fictional message set](gmail-test-messages.md) to a
   dedicated test inbox. It covers a client concern, manager promise, stated
   goal/preference, and an unknown sender.
