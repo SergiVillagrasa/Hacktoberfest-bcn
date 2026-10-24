@@ -1,54 +1,54 @@
-# hacktoberfest-bcn
+# Client Briefing
 
-Local client briefing assistant for bank relationship managers. A Chrome side panel restores relevant client context while the manager reads a fictional email: concerns, unresolved requests and promises, goals/preferences, and message-specific communication signals with source evidence.
+A local AI briefing assistant for bank relationship managers. While a manager reads a fictional client conversation in Gmail, a Chrome side panel gathers relevant recorded concerns, open commitments, goals, preferences, and message-specific communication signals—with the source evidence close at hand.
 
-## Start here
+Prepared for **MLH Hacktoberfest Hack Day Barcelona 2026**, with a focus on **Best Open-Source AI Project**.
 
-1. Read [architecture.md](architecture.md), the authoritative architecture and workflow. Changes to this file require Sergi's prior permission.
-2. Read [AGENTS.md](AGENTS.md) if you are using an AI assistant.
-3. Read the [team setup](setup-hacktoberfest.md) and [research findings](research-bank-manager-sidebar.md).
-4. Use the [implementation plan index](docs/implementation_plans/README.md) to find your member plan and feature lane.
+## Development tools
 
-## Implementation status
+Gemini and OpenAI Codex were used as AI-assisted development tools while building this project. They supported development work; the shipped product's client-context analysis runs locally with Ollama and Qwen3.
 
-The workspace includes Gmail current-message capture, Chrome local storage,
-local Ollama extraction, evidence checks, and a briefing panel with review actions.
-Unknown senders require explicit registration, which creates an empty client
-record. No profiles, history or answers are seeded from message keywords.
-Ollama failures show an unavailable state; no scripted answers are substituted.
-See the [acceptance checklist](docs/sergi/implementation-checklist.md) for remaining
-integration and demo checks. Opening a Gmail thread automatically captures its incoming messages and manager replies, expands collapsed message headers, and stores/analyzes context for the registered client. JSON history import and persistent analysis caching are available in the English-language panel. See the [import and rehearsal guide](docs/sergi/history-import.md).
+## Why this project
 
-```text
-architecture.md                    Protected architecture
-AGENTS.md                          Assistant entry point and skill routing
-setup-hacktoberfest.md             Shared product/stack/team decisions
-research-bank-manager-sidebar.md   Findings, sources and sidebar priorities
-apps/extension/                    WXT/React extension and composition ownership
-packages/contracts/                Shared value types and capture validation
-packages/core/                     Exact client matching, ports and service interfaces
-packages/infra/                    Chrome storage and local Ollama adapters
-docs/implementation_plans/         Concise plans and member folders
-docs/design_plans/                 Reserved for explicitly requested designs
-skills/                            Five local assistant skills
-LICENSE                            MIT license for project code
+Client conversations are spread across long email histories. Managers need to recover what a client has raised, what the manager promised, and what the client has said they want before the next conversation. Client Briefing uses a local language model to surface candidate context and supporting excerpts, while keeping confirmation and relationship decisions with the manager.
+
+## How it works
+
+```mermaid
+flowchart LR
+  A[Open a fictional Gmail conversation] --> B[Capture messages in that conversation]
+  B --> C[Match the exact client address]
+  C --> D[Analyze locally with Qwen3]
+  D --> E[Show a brief with source excerpts]
+  E --> F[Manager reviews suggestions and decides next steps]
 ```
 
-## Team
+The extension captures the currently open Gmail thread, including incoming messages and manager replies. Managers can also import fictional JSON history. The application validates client ownership and evidence, stores data in Chrome local storage, and asks local Ollama running `qwen3:1.7b` to suggest relevant context. Suggestions stay separate from manager-confirmed facts until reviewed.
 
-| Member | Responsibility |
-|---|---|
-| Sergi | Critical path: foundation, contract coordination, React panel and integration |
-| Albert | Parallel work across Gmail/history and local AI/context with Joana |
-| Joana | Parallel work across Gmail/history and local AI/context with Albert |
+## What is implemented
 
-The two available lanes are Gmail capture/import and local AI/client-context services. Feature plans for both are already written and linked from each member's plan.
+- Chrome Manifest V3 extension with a React side panel.
+- Current-thread Gmail capture, including message IDs, direction, exact text, and manager replies.
+- Explicit fictional history import, with source labels and coverage information.
+- Exact-address client matching and client isolation.
+- Local Qwen3 analysis with bounded suggestions and exact source-excerpt checks.
+- Local persistence and cached analysis, including manager review state.
+- Clear unavailable/error behavior; no canned answers when Ollama is unavailable.
 
-## Run locally
+The product has automated and synthetic-browser verification. Actual signed-in Chrome/Gmail acceptance and remaining end-to-end workflow checks are tracked in the [acceptance checklist](docs/sergi/implementation-checklist.md). This is a hackathon prototype, not a production banking tool.
 
-Run all commands from the repository root. Verified toolchain: Bun 1.4.3 and
-Node 22.22.2 (Vite 7 requires Node 20.19+ or 22.12+). Use a recent Chrome;
-the manifest requires Chrome 116+. Dependencies resolve through `bun.lock`.
+## Try it locally
+
+### Requirements
+
+- Bun 1.4.3 and Node.js 22.12 or newer.
+- Chrome 116 or newer.
+- [Ollama](https://ollama.com/) with the `qwen3:1.7b` model for live analysis.
+- A fictional Gmail inbox/thread for capture; never use real client information.
+
+### Install and build
+
+From the repository root:
 
 ```sh
 bun install --frozen-lockfile
@@ -57,55 +57,43 @@ bun run test
 bun run build
 ```
 
-In `chrome://extensions`, enable Developer mode, choose **Load unpacked**, and
-select `apps/extension/.output/chrome-mv3`. Pin **Client briefing** and click its
-toolbar icon. The panel initially waits for a Gmail message. Open a fictional incoming message
-and explicitly register its sender if unknown. Registration creates no facts or
-history. Start local Ollama with `qwen3:1.7b` and configure the extension origin as
-explained in [setup](setup-hacktoberfest.md); the model generates suggestions that
-the manager can confirm or dismiss. Unavailable Ollama produces an error.
+Load `apps/extension/.output/chrome-mv3` as an unpacked extension from `chrome://extensions` with Developer mode enabled. Pin **Client briefing**, open a fictional Gmail conversation, and click the extension toolbar button to open the side panel. For an unknown sender, register the client explicitly; registration creates an empty client record and does not seed facts or history.
 
-On first access after updating, storage removes observations without explicit
-`ollama-live` provenance (including previously reviewed scripted facts) and known
-bundled sample messages. Captured messages and live model results are retained, except results citing the removed bundled sample messages.
-Test fixtures remain in test-only files and are not loaded by the extension.
+Start Ollama locally with `qwen3:1.7b` and allow the extension origin using `OLLAMA_ORIGINS`. See the [team setup guide](setup-hacktoberfest.md) and [history import and rehearsal guide](docs/sergi/history-import.md) for detailed setup, local model configuration, and fictional JSON import format.
 
-`bun run dev` starts WXT with hot reload and its browser runner. For the simplest
-manual Chrome check, use the production-build loading steps above. Never use
-real client data.
+## Privacy and decision boundaries
 
-`bun run prepare` regenerates WXT types; installation and typecheck also run it.
-`bun run test` runs Vitest, with separate domain and WXT extension projects.
-Vite 7 and React plugin 5 are aligned through root overrides so WXT and Vitest
-use compatible plugin types. Keep extension tests outside `entrypoints/` so WXT
-does not treat tests as extension entry points.
+- Only the currently open Gmail conversation is captured. The extension does not search or synchronize the mailbox and does not use Gmail OAuth.
+- Email history, extracted context, and reviewed facts stay in `chrome.storage.local`; inference uses Ollama on the same computer.
+- Unknown senders do not receive another client's context. Client matching and evidence validation are application rules, not model decisions.
+- Model output is a suggestion. A matching quotation supports inspection but does not prove that an interpretation is correct.
+- Communication signals refer to particular messages and topics; they are not permanent emotional profiles or manager scores.
+- The extension does not send emails, set prices, or make financial decisions.
+- Use fictional data only. See [architecture.md](architecture.md) for the full technical and data boundaries.
 
-## Teammate handoff
+## Architecture
 
-The foundation is merged to `main`. Update local checkouts from `main`. Albert
-and Joana work in parallel across both `feat/gmail-context` and
-`feat/local-ai-profile`, coordinating task boundaries and shared-contract edits
-with Sergi.
+The TypeScript/Bun workspace uses ports and adapters to keep client-context rules independent of Chrome, storage, and model integrations.
 
-Workspace exports are `@briefing/contracts`, `@briefing/core` and
-`@briefing/infra`. Contracts provides email/source, evidence, review, coverage,
-panel-state and capture-envelope types plus `isEmailContext`/`isCaptureMessage`.
-Core exports exact `matchClient`, `HistoryPort`, `ProfilePort`, `InferencePort`
-and `ClientContextUseCases`, plus the implemented `ClientContextService`.
-Infra exports Chrome local-storage ports and the local Ollama inference adapter.
+| Path | Responsibility |
+|---|---|
+| `apps/extension/` | WXT, Gmail capture, extension messaging, and React side panel |
+| `packages/contracts/` | Shared types and boundary validation |
+| `packages/core/` | Client matching, evidence rules, and context services |
+| `packages/infra/` | Chrome storage, history import, and local Ollama adapter |
 
-Sergi coordinates contract edits and owns extension composition under
-[`apps/extension/lib/`](apps/extension/lib/README.md). That handoff describes
-message names, request identity, navigation clearing and handler boundaries.
-Shape validation does not replace sender-origin or client/evidence validation.
-Keep permissions limited to the side panel, storage, Gmail capture and loopback inference.
+See [architecture.md](architecture.md) for dependency rules and [research-bank-manager-sidebar.md](research-bank-manager-sidebar.md) for the product research and priorities.
 
-Keep the primary demonstration on Sergi's computer: labeled imported fictional history plus live extraction from the current Gmail message. Display missing history honestly. If Gmail or Ollama is unavailable, show an empty/error state; scripted answer fallbacks have been removed. Reserve the final integration/rehearsal period; implement the approved preference-change stretch feature only after the briefing flow works.
+## Team
 
-## Assistant skills and plugins
+| Member | Focus |
+|---|---|
+| Sergi | Foundation, shared contracts, side panel, and integration |
+| Albert | Gmail/history and local AI/client-context work with Joana |
+| Joana | Gmail/history and local AI/client-context work with Albert |
 
-Project skills are plain files under skills/, indexed by AGENTS.md. An assistant can read them directly without installing a plugin. Superpowers is optional and is not required for these plans. Impeccable may help frontend work if available; no product dependency relies on it.
+Implementation plans and the team workflow are in [docs/implementation_plans](docs/implementation_plans/README.md) and [setup-hacktoberfest.md](setup-hacktoberfest.md).
 
 ## License
 
-Project code is under the [MIT License](LICENSE). Third-party packages and model weights retain their own licenses; this repository license does not replace them.
+Project code is licensed under the [MIT License](LICENSE). Third-party packages and model weights retain their respective licenses.
