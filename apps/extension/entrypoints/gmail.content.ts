@@ -13,10 +13,10 @@ export default defineContentScript({
     let pending: { url: string; promise: Promise<CaptureMessage> } | undefined;
 
     function capture(): Promise<CaptureMessage> {
-      const url = location.href;
+      const url = typeof location !== 'undefined' ? location.href : (typeof window !== 'undefined' && window.location ? window.location.href : '');
       if (pending?.url === url) return pending.promise;
       const generation = navigation;
-      const current = () => !disposed && generation === navigation && location.href === url;
+      const current = () => !disposed && generation === navigation && (typeof location !== 'undefined' ? location.href : (typeof window !== 'undefined' && window.location ? window.location.href : '')) === url;
       const promise = (async (): Promise<CaptureMessage> => {
         const requestId = crypto.randomUUID();
         try {
