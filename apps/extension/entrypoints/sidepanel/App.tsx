@@ -202,17 +202,19 @@ export function App() {
         <div className="brand-title">
           <h1>Assessor Bancari AI</h1>
           <div className="engine-status-badge-wrapper">
-            {engineStatus === 'ollama-live' && (
+            {isAnalyzing ? (
+              <span className="badge-engine analyzing" title="Processant correu amb IA local (màx. 10s)...">
+                <span className="pulse-spinner" /> Analitzant IA...
+              </span>
+            ) : engineStatus === 'ollama-live' ? (
               <span className="badge-engine live" title="IA Local activa: connectat a Ollama (http://127.0.0.1:11434)">
                 ● Ollama Qwen3
               </span>
-            )}
-            {engineStatus === 'offline-fallback' && (
-              <span className="badge-engine fallback" title="Ollama offline: Utilitzant motor de seguretat offline amb cites literals">
+            ) : engineStatus === 'offline-fallback' ? (
+              <span className="badge-engine fallback" title="Ollama offline o lent: Utilitzant motor de seguretat offline amb cites literals">
                 ⚠ Fallback Offline
               </span>
-            )}
-            {engineStatus === 'idle' && (
+            ) : (
               <span className="badge-engine idle">
                 ○ Comprovant IA...
               </span>
@@ -242,8 +244,10 @@ export function App() {
       {/* Loading state */}
       {isAnalyzing && (
         <div className="state-box">
+          <div className="analysis-spinner" />
           <h2>Analitzant amb model local...</h2>
           <p>Llegint correu de Gmail i extraient pactes, evidències i historial amb IA local.</p>
+          <span className="analysis-hint">Model Ollama Qwen3 actiu (amb seguretat offline &lt; 10s)</span>
         </div>
       )}
 
@@ -295,7 +299,7 @@ export function App() {
             <div className="engine-banner banner-fallback">
               <span className="engine-banner-icon">⚠️</span>
               <div className="engine-banner-text">
-                <strong>Mode Fallback Offline actiu:</strong> Ollama no està arrencat a <code>127.0.0.1:11434</code>. L&apos;assistent utilitza el motor de seguretat amb cites literals per garantir la continuïtat del servei.
+                <strong>Mode Fallback Offline actiu:</strong> Ollama no ha respost a temps (&gt; 10s) o està fora de línia a <code>127.0.0.1:11434</code>. L&apos;assistent ha aplicat el motor de seguretat amb cites literals per garantir la continuïtat del servei.
               </div>
             </div>
           )}

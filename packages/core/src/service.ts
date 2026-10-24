@@ -47,6 +47,15 @@ export class ClientContextService implements ClientContextUseCases {
       return { status: 'no-client' };
     }
 
+    // Optimization: If this email has already been analyzed and produced items, return cached analysis immediately
+    if (profile.items.some((item) => item.sourceEmailId === email.id)) {
+      return {
+        status: 'analyzed',
+        clientId: profile.id,
+        suggestions: [],
+      };
+    }
+
     const { emails } = await this.deps.historyPort.list(profile.id);
     // Combine currently open email and recorded history as allowed sources
     const allowedSources = [email, ...emails.filter((e) => e.id !== email.id)];

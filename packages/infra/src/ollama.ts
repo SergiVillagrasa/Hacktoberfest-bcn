@@ -16,7 +16,7 @@ export interface OllamaAdapterConfig {
 const DEFAULT_CONFIG: Required<OllamaAdapterConfig> = {
   baseUrl: 'http://127.0.0.1:11434',
   model: 'qwen3:1.7b',
-  timeoutMs: 45_000,
+  timeoutMs: 10_000,
   useFallbackOnOffline: true,
 };
 
@@ -45,7 +45,7 @@ export class OllamaInferenceAdapter implements InferencePort {
   async checkOllamaHealth(): Promise<boolean> {
     try {
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 1200);
+      const timer = setTimeout(() => controller.abort(), 3500);
       const res = await fetch(`${this.config.baseUrl}/api/tags`, {
         signal: controller.signal,
       });
@@ -62,23 +62,21 @@ export class OllamaInferenceAdapter implements InferencePort {
     sources: readonly EmailContext[];
   }): Promise<ContextCandidate[]> {
     const systemPrompt = `You are an AI assistant for a bank relationship manager.
-Analyze the provided email and available historical thread sources for client "${input.profile.displayName}" (${input.profile.email}).
-Extract 2 to 3 key observations related to:
-- "concern": customer doubts, fears, complaints, fee worries
+Analyze the provided email for client "${input.profile.displayName}" (${input.profile.email}).
+Extract 1 to 2 key observations related to:
+- "concern": customer doubts, complaints, fee worries
 - "commitment": promises made by the manager or customer
 - "goal": business or financial targets
 - "preference": communication channels, meeting preferences
-- "communication_signal": message-specific tone
 
 MANDATORY RULES:
-1. Every item MUST cite an exact "sourceEmailId" from the provided emails.
+1. Every item MUST cite an exact "sourceEmailId" from the provided email.
 2. Every item MUST cite an exact "sourceExcerpt" that appears VERBATIM as a substring in that email's body.
-3. Keep each "text" and "sourceExcerpt" concise (under 20 words).
-4. Return ONLY valid JSON in this exact structure:
+3. Return ONLY valid JSON in this exact structure:
 {
   "items": [
     {
-      "kind": "concern" | "commitment" | "goal" | "preference" | "communication_signal",
+      "kind": "concern" | "commitment" | "goal" | "preference",
       "text": "short summary",
       "sourceEmailId": "exact email id",
       "sourceExcerpt": "verbatim excerpt"
@@ -86,27 +84,28 @@ MANDATORY RULES:
   ]
 }`;
 
-    const sourcesSummary = input.sources
-      .map(
-        (s) =>
-          `[Email ID: ${s.id} | From: ${s.senderEmail} | Date: ${s.sentAt || 'unknown'}]\nSubject: ${s.subject}\nBody: ${s.body}\n`
-      )
-      .join('\n---\n');
+    const otherSources = input.sources
+      .filter((s) => s.id !== input.email.id)
+      .slice(0, 2);
+    const sourcesSummary =
+      otherSources.length > 0
+        ? otherSources
+            .map((s) => `[Email: ${s.id} | ${s.senderEmail}]: ${s.body.slice(0, 150)}`)
+            .join('\n')
+        : 'None';
 
-    const userPrompt = `/no_think
-CLIENT PROFILE:
-Name: ${input.profile.displayName}
-Email: ${input.profile.email}
+    const userPrompt = `CLIENT PROFILE:
+Name: ${input.profile.displayName} (${input.profile.email})
 
 CURRENT OPEN EMAIL:
 ID: ${input.email.id}
 Subject: ${input.email.subject}
 Body: ${input.email.body}
 
-AVAILABLE THREAD SOURCES:
+RECENT THREAD CONTEXT:
 ${sourcesSummary}
 
-Extract up to 3 observations as valid JSON now.`;
+Extract up to 2 observations as JSON now.`;
 
     try {
       const controller = new AbortController();
@@ -119,8 +118,9 @@ Extract up to 3 observations as valid JSON now.`;
           model: this.config.model,
           stream: false,
           format: 'json',
+          think: false, // CRITICAL: disables Qwen3 internal chain-of-thought to prevent CPU timeout
           options: {
-            num_predict: 400,
+            num_predict: 140,
             temperature: 0.1,
           },
           messages: [
