@@ -1,0 +1,138 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-24T14:35:59.749019+00:00",
+  "title": "Design System: Client Brief",
+  "extensions": {
+    "motion": [
+      {
+        "name": "feedback",
+        "value": "140ms",
+        "purpose": "Immediate control feedback."
+      },
+      {
+        "name": "disclosure",
+        "value": "180ms cubic-bezier(.16,1,.3,1)",
+        "purpose": "Evidence and status opacity feedback; disabled with reduced motion."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "narrow",
+        "value": "320px"
+      },
+      {
+        "name": "panel-max",
+        "value": "480px"
+      }
+    ],
+    "colorMeta": {
+      "primary": {
+        "role": "primary",
+        "displayName": "Workspace blue",
+        "canonical": "#0b57d0",
+        "tonalRamp": [
+          "#0842a0",
+          "#174ea6",
+          "#0b57d0",
+          "#7aa7eb",
+          "#a8c7fa",
+          "#d3e3fd",
+          "#e8f0fe",
+          "#f8fafd"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Neutral ink and surfaces",
+        "canonical": "#202124",
+        "tonalRamp": [
+          "#202124",
+          "#3c4043",
+          "#5f6368",
+          "#9aa0a6",
+          "#bdc1c6",
+          "#dadce0",
+          "#e8eaed",
+          "#ffffff"
+        ]
+      },
+      "attention": {
+        "role": "semantic",
+        "displayName": "Attention amber",
+        "canonical": "#a65a00",
+        "tonalRamp": [
+          "#4e2900",
+          "#703c00",
+          "#914f00",
+          "#a65a00",
+          "#d18828",
+          "#f9ab00",
+          "#fef7e0",
+          "#fffaf0"
+        ]
+      }
+    }
+  },
+  "components": [
+    {
+      "name": "Primary action",
+      "kind": "button",
+      "description": "Primary action in the Client Brief panel.",
+      "html": "<button class=\"ds-primary\">Confirm</button>",
+      "css": ".ds-primary{font:500 12px system-ui;min-height:36px;border:1px solid #0b57d0;border-radius:18px;padding:7px 12px;background:#0b57d0;color:#fff}.ds-primary:hover{background:#0842a0}.ds-primary:active{background:#0842a0}.ds-primary:focus-visible{outline:2px solid #0b57d0;outline-offset:2px}",
+      "refersTo": "button-primary"
+    },
+    {
+      "name": "Secondary action",
+      "kind": "button",
+      "description": "Secondary action in the Client Brief panel.",
+      "html": "<button class=\"ds-secondary\">Dismiss</button>",
+      "css": ".ds-secondary{font:500 12px system-ui;min-height:36px;border:1px solid #dadce0;border-radius:18px;padding:7px 12px;background:#fff;color:#3c4043}.ds-secondary:hover{background:#f8fafd}.ds-secondary:active{background:#f1f3f4}.ds-secondary:focus-visible{outline:2px solid #0b57d0;outline-offset:2px}",
+      "refersTo": "button-secondary"
+    },
+    {
+      "name": "History file input",
+      "kind": "input",
+      "description": "History file input in the Client Brief panel.",
+      "html": "<label class=\"ds-input\">History JSON<input type=\"file\" accept=\".json\"></label>",
+      "css": ".ds-input{display:grid;gap:8px;font:500 12px system-ui;color:#202124}.ds-input input{min-width:0;padding:7px;border:1px solid #dadce0;border-radius:6px;background:#fff;color:#202124}.ds-input input:focus-visible{outline:2px solid #0b57d0;outline-offset:2px}"
+    },
+    {
+      "name": "Review label",
+      "kind": "chip",
+      "description": "Review label in the Client Brief panel.",
+      "html": "<span class=\"ds-review\">Needs review</span>",
+      "css": ".ds-review{display:inline-flex;padding:1px 5px;border-radius:4px;font:400 10px/1.5 system-ui;color:#a65a00;background:#fef7e0}"
+    },
+    {
+      "name": "Evidence disclosure",
+      "kind": "custom",
+      "description": "Evidence disclosure in the Client Brief panel.",
+      "html": "<details class=\"ds-evidence\"><summary>View source excerpt</summary><blockquote>Original message text appears here.</blockquote></details>",
+      "css": ".ds-evidence{font:400 12px/1.5 system-ui;color:#202124}.ds-evidence summary{cursor:pointer;min-height:36px;display:flex;align-items:center;color:#0b57d0}.ds-evidence summary:hover{background:#f1f3f4}.ds-evidence summary:focus-visible{outline:2px solid #0b57d0;outline-offset:2px}.ds-evidence blockquote{margin:4px 0;padding:9px 11px;border-radius:8px;background:#f1f3f4;color:#3c4043}",
+      "refersTo": "evidence"
+    }
+  ],
+  "narrative": {
+    "overview": "A calm, precise Google Workspace-inspired utility beside Gmail. The interface\nsupports a manager reading recorded context, inspecting its evidence, and making\nan explicit review decision. Preserve the existing identity when adding features.\n\nThe visual system uses compact typography, a cool canvas, tonal insets, thin\ndividers, and restrained line icons. Density serves scanning without hiding\nuncertainty or turning model output into an authoritative financial judgment.",
+    "rules": [
+      {
+        "name": "The Evidence Rule",
+        "body": "A blue source treatment is not a confidence score. Never color an AI interpretation as verified simply because its excerpt matches.",
+        "section": "colors"
+      }
+    ],
+    "dos": [
+      "Do keep concerns and open commitments easiest to find.",
+      "Do pair semantic icons and colors with written labels.",
+      "Do preserve exact evidence and distinguish suggestions from confirmed context.",
+      "Do use native keyboard-operable disclosures and visible focus.",
+      "Do respect reduced motion and narrow panel sizes."
+    ],
+    "donts": [
+      "Don't introduce confidence gauges, emotional profiles, or manager scores.",
+      "Don't add decorative charts, repeated cards, shadows, or page-load choreography.",
+      "Don't invent dates, urgency rankings, product claims, or complete history."
+    ]
+  }
+}

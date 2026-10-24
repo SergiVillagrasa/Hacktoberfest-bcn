@@ -8,6 +8,9 @@ Local client briefing assistant for bank relationship managers. A Chrome side pa
 2. Read [AGENTS.md](AGENTS.md) if you are using an AI assistant.
 3. Read the [team setup](setup-hacktoberfest.md) and [research findings](research-bank-manager-sidebar.md).
 4. Use the [implementation plan index](docs/implementation_plans/README.md) to find your member plan and feature lane.
+5. For interface work, read [PRODUCT.md](PRODUCT.md), the extension's
+   [DESIGN.md](apps/extension/DESIGN.md), and its
+   [side panel brief](docs/design_plans/sidepanel.md).
 
 ## Implementation status
 
@@ -17,7 +20,7 @@ Unknown senders require explicit registration, which creates an empty client
 record. No profiles, history or answers are seeded from message keywords.
 Ollama failures show an unavailable state; no scripted answers are substituted.
 See the [acceptance checklist](docs/sergi/implementation-checklist.md) for remaining
-integration and demo checks. Opening a Gmail thread automatically captures its incoming messages and manager replies, expands collapsed message headers, and stores/analyzes context for the registered client. JSON history import and persistent analysis caching are available in the English-language panel. See the [import and rehearsal guide](docs/sergi/history-import.md).
+product acceptance checks. Opening a Gmail thread automatically captures its incoming messages and manager replies, expands collapsed message headers, and stores/analyzes context for the registered client. JSON history import and persistent analysis caching are available in the English-language panel. See the [import and rehearsal guide](docs/sergi/history-import.md).
 
 ```text
 architecture.md                    Protected architecture

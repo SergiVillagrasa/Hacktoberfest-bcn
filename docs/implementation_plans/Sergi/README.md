@@ -16,4 +16,8 @@ Read architecture.md, AGENTS.md and the shared kickoff plan before implementing.
 
 8. [Automatic thread context](08-automatic-thread-context.md): automatically expand/capture the open thread and store/analyze local context.
 
+9. [Briefing panel redesign](09-briefing-panel-redesign.md): a concise conversation brief with progressive evidence disclosures.
+
+10. [Visual guidance and motion](10-briefing-visual-guidance.md): durable product/design records, semantic visuals, and reduced-motion support.
+
 Albert and Joana work in parallel across Gmail/history and local AI/context. You coordinate shared contract and composition changes, review integration PRs, and keep `main` runnable.

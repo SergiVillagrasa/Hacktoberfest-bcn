@@ -19,7 +19,83 @@ import {
 import '../../assets/panel.css';
 import { browser } from 'wxt/browser';
 import { HistoryImportForm } from '../../components/history/HistoryImportForm';
+import { ContextIcon } from '../../components/briefing/ContextIcon';
 import { SelectionGuard } from '../../lib/selection-guard';
+
+function ContextRow({
+  item,
+  onReview,
+  onToggleResolve,
+}: {
+  item: ContextItem;
+  onReview: (item: ContextItem, review: 'confirmed' | 'dismissed') => void;
+  onToggleResolve: (item: ContextItem) => void;
+}) {
+  const kindLabel = item.kind === 'communication_signal'
+    ? 'Communication signal'
+    : item.kind.charAt(0).toUpperCase() + item.kind.slice(1);
+  const reviewLabel = item.review === 'suggested' ? 'Needs review' : 'Confirmed';
+
+  return (
+    <details className={`context-item kind-${item.kind} review-${item.review}`}>
+      <summary>
+        <span className="context-kind-icon"><ContextIcon kind={item.kind} /></span>
+        <span className="context-summary-copy">
+          <span className="context-item-text">{item.text}</span>
+          <span className="context-item-meta">
+            {kindLabel}
+            <span className={`review-state is-${item.review}`}>
+              {item.review === 'confirmed' && <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m3 8 3 3 7-7" /></svg>}
+              {reviewLabel}
+            </span>
+            {item.resolution === 'resolved' && <> <span aria-hidden="true">·</span> Resolved</>}
+          </span>
+        </span>
+        <svg className="context-chevron" viewBox="0 0 20 20" aria-hidden="true">
+          <path d="m6 8 4 4 4-4" />
+        </svg>
+      </summary>
+      <div className="context-detail">
+        <div className="source-evidence">
+          <span className="evidence-label">
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M8 5H3v6h4c0 2-1 3-3 4m13-10h-5v6h4c0 2-1 3-3 4" /></svg>
+            Source excerpt
+          </span>
+          <blockquote>“{item.sourceExcerpt}”</blockquote>
+        </div>
+        <p className="context-source">
+          Source message: <code>{item.sourceEmailId}</code>
+          {item.review === 'suggested' && (
+            <span className="context-origin">
+              {item.inference === 'ollama-live'
+                ? 'Suggested by local Qwen3'
+                : item.inference === 'offline-fallback'
+                  ? 'Static fallback'
+                  : 'Suggestion origin not recorded'}
+            </span>
+          )}
+        </p>
+        <div className="context-actions">
+          {item.review === 'suggested' && (
+            <>
+              <button className="btn btn-primary" onClick={() => onReview(item, 'confirmed')}>
+                Confirm
+              </button>
+              <button className="btn" onClick={() => onReview(item, 'dismissed')}>
+                Dismiss
+              </button>
+            </>
+          )}
+          {(item.kind === 'concern' || item.kind === 'commitment') && (
+            <button className="btn" onClick={() => onToggleResolve(item)}>
+              {item.resolution === 'resolved' ? 'Reopen' : 'Mark resolved'}
+            </button>
+          )}
+        </div>
+      </div>
+    </details>
+  );
+}
 
 export function App() {
   const activeTabId = useRef<number | undefined>(undefined);
@@ -268,385 +344,242 @@ export function App() {
     }
   };
 
-  const commitments = useMemo(() => {
+  const attentionItems = useMemo(() => {
     if (panelState.status !== 'ready') return [];
-    return panelState.briefing.items.filter((i) => i.kind === 'commitment');
+    return panelState.briefing.items.filter((item) =>
+      (item.kind === 'concern' || item.kind === 'commitment') && item.resolution !== 'resolved'
+    );
   }, [panelState]);
 
-  const concerns = useMemo(() => {
+  const resolvedItems = useMemo(() => {
     if (panelState.status !== 'ready') return [];
-    return panelState.briefing.items.filter((i) => i.kind === 'concern');
+    return panelState.briefing.items.filter((item) =>
+      (item.kind === 'concern' || item.kind === 'commitment') && item.resolution === 'resolved'
+    );
   }, [panelState]);
 
-  const goalsAndPreferences = useMemo(() => {
+  const otherContext = useMemo(() => {
     if (panelState.status !== 'ready') return [];
     return panelState.briefing.items.filter(
-      (i) => i.kind === 'goal' || i.kind === 'preference' || i.kind === 'communication_signal'
+      (item) => item.kind === 'goal' || item.kind === 'preference' || item.kind === 'communication_signal'
     );
   }, [panelState]);
 
   const captureReason = panelState.status === 'empty' ? panelState.reason : undefined;
   const captureGuidance = captureReason === 'outgoing-message'
-    ? { title: 'Manager reply open', text: 'The current thread is captured automatically, including manager replies. Retry thread capture if it has not loaded.' }
+    ? { title: 'Manager reply open', text: 'The open thread includes manager replies. Retry capture if it has not loaded.' }
     : captureReason === 'account-unavailable'
-      ? { title: 'Gmail account could not be identified', text: 'Reload Gmail and retry capture. Account identity is needed to distinguish incoming messages from your replies.' }
+      ? { title: 'Gmail account unavailable', text: 'Reload Gmail, then retry capture.' }
       : captureReason === 'message-unreadable'
-        ? { title: 'The open message could not be read', text: 'Expand the incoming client message and retry. If this continues, reload Gmail. Collapsed messages and other conversations are not read.' }
+        ? { title: 'Message could not be read', text: 'Expand the client message and retry. Only the open thread is read.' }
         : captureReason === 'capture-disconnected'
-          ? { title: 'Reconnect to Gmail', text: 'Select the Gmail tab. If you reloaded the extension, reload Gmail too, then reopen the panel from the extension icon.' }
-          : { title: 'No message open', text: 'Expand a fictional incoming message in Gmail. The assistant will retrieve context only for its matching client.' };
+          ? { title: 'Reconnect to Gmail', text: 'Reload Gmail, then reopen this panel from the extension icon.' }
+          : { title: 'No message open', text: 'Open a fictional client message in Gmail to see its recorded context.' };
+
+  const attentionPreview = attentionItems.slice(0, 3);
+  const moreAttention = attentionItems.slice(3);
+  const contextPreview = otherContext.slice(0, 3);
+  const moreContext = otherContext.slice(3);
 
   return (
-    <main>
-      <header>
-        <div className="brand-title">
-          <h1>Client Briefing AI</h1>
-          <div className="engine-status-badge-wrapper">
-            {isAnalyzing ? (
-              <span className="badge-engine analyzing" title="Processing email with local AI...">
-                <span className="pulse-spinner" /> Analyzing…
-              </span>
-            ) : analysisCached ? (
-              <span className="badge-engine idle">Saved Qwen3 analysis</span>
-            ) : engineStatus === 'ollama-live' ? (
-              <span className="badge-engine live" title="Local AI connected to Ollama (http://127.0.0.1:11434)">
-                ● Ollama Qwen3
-              </span>
-            ) : (
-              <span className="badge-engine idle">
-                ○ No new inference
-              </span>
-            )}
+    <main className="briefing-app">
+      <header className="app-header">
+        <div className="app-title-row">
+          <div className="app-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M6 5h12v14H6zM9 9h6M9 12h6M9 15h3" /></svg>
           </div>
+          <h1>Client brief</h1>
+          <span className={`engine-status ${engineStatus === 'ollama-live' ? 'is-live' : ''}`}>
+            <span className="status-dot" aria-hidden="true" />
+            {isAnalyzing ? 'Analyzing' : engineStatus === 'ollama-live' ? 'Qwen3 · local' : analysisCached ? 'Saved analysis' : 'Local'}
+          </span>
         </div>
-        <p className="subtitle">Evidence-backed context from fictional client messages</p>
-
         <div className="active-email-banner">
           {activeEmail ? (
             <>
-              <span className="live-dot online" />
+              <span className="active-indicator" aria-hidden="true" />
               <div className="active-email-info">
                 <strong>{activeEmail.subject}</strong>
-                <span>From: {activeEmail.senderEmail}</span>
+                <span>{activeEmail.senderEmail}</span>
               </div>
             </>
           ) : (
             <>
-              <span className="live-dot waiting" />
+              <span className={`active-indicator ${panelState.status === 'ready' ? '' : 'is-waiting'}`} aria-hidden="true" />
               <span className="active-email-info">{panelState.status === 'ready' ? 'Current Gmail thread' : captureGuidance.title}</span>
             </>
           )}
         </div>
       </header>
 
-      {/* Loading state */}
       {isAnalyzing && (
-        <div className="state-box">
-          <div className="analysis-spinner" />
-          <h2>Analyzing with the local model…</h2>
-          <p>Reading the open thread and analyzing new or changed messages with local AI.</p>
-          <span className="analysis-hint">Using local Ollama Qwen3</span>
-        </div>
+        <section className="state-panel" aria-live="polite">
+          <div className="analysis-spinner" aria-hidden="true" />
+          <h2>Preparing the brief</h2>
+          <p>Checking the open thread with local AI.</p>
+          <span className="analysis-hint">Ollama · Qwen3</span>
+        </section>
       )}
 
-      {/* Empty State */}
       {!isAnalyzing && panelState.status === 'empty' && (
-        <div className="state-box">
+        <section className="state-panel">
+          <div className="state-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M4 6.5h16v12H4zM4 8l8 5 8-5" /></svg>
+          </div>
           <h2>{captureGuidance.title}</h2>
           <p>{captureGuidance.text}</p>
-          <button className="btn" onClick={() => setCaptureAttempt((attempt) => attempt + 1)}>
-            Retry thread capture
+          <button className="btn btn-primary" onClick={() => setCaptureAttempt((attempt) => attempt + 1)}>
+            Retry capture
           </button>
-        </div>
+        </section>
       )}
 
-      {/* Unknown Client State */}
       {!isAnalyzing && panelState.status === 'no-client' && (
-        <div className="state-box">
-          <h2>Unregistered sender</h2>
-          <p>
-            The sender <strong>{panelState.senderEmail}</strong> has no registered client record.
-          </p>
-          <p style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '6px' }}>
-            No other client’s information is shown.
-          </p>
-          <div style={{ marginTop: '14px' }}>
-            <button
-              className="btn btn-sm btn-primary"
-              onClick={() => handleBindClientManually(panelState.senderEmail)}
-            >
-              Register client with empty history
-            </button>
+        <section className="state-panel">
+          <div className="state-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3" /><path d="M5 20c.6-3.4 3.1-5 7-5s6.4 1.6 7 5" /></svg>
           </div>
-        </div>
+          <h2>No client record</h2>
+          <p>No history is shown for <strong>{panelState.senderEmail}</strong>.</p>
+          <button className="btn btn-primary" onClick={() => handleBindClientManually(panelState.senderEmail)}>
+            Create empty client record
+          </button>
+        </section>
       )}
 
-      {/* Error / Unavailable State */}
       {!isAnalyzing && panelState.status === 'unavailable' && (
-        <div className="state-box">
-          <h2>Service unavailable</h2>
+        <section className="state-panel state-panel-error">
+          <div className="state-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M12 3 2.8 20h18.4L12 3zM12 9v5m0 3v.1" /></svg>
+          </div>
+          <h2>Brief unavailable</h2>
           <p>{panelState.reason}</p>
-          <p>Check the capture details above and retry. If analysis failed, check Ollama.</p>
-          <button className="btn" onClick={() => setCaptureAttempt((attempt) => attempt + 1)}>Retry thread capture</button>
-          {activeEmail && <button className="btn" onClick={() => void processEmail(activeEmail)}>Try again</button>}
-        </div>
+          <p>Check Gmail capture and local Ollama, then retry.</p>
+          <div className="button-row">
+            <button className="btn" onClick={() => setCaptureAttempt((attempt) => attempt + 1)}>Retry capture</button>
+            {activeEmail && <button className="btn btn-primary" onClick={() => void processEmail(activeEmail)}>Try again</button>}
+          </div>
+        </section>
       )}
 
-      {/* Ready / Briefing State */}
       {!isAnalyzing && panelState.status === 'ready' && (
         <>
-          {/* Active Engine Notice Banner */}
-          {engineStatus === 'ollama-live' && (
-            <div className="engine-banner banner-live">
-              <span className="engine-banner-icon">🟢</span>
-              <div className="engine-banner-text">
-                <strong>Live Qwen3 result:</strong> New observations come from the local model. Review their interpretation before confirming.
-              </div>
+          {actionMessage && <p role="status" className="action-notice">{actionMessage}</p>}
+
+          <section className="client-summary" aria-labelledby="client-heading">
+            <h2 id="client-heading">{panelState.briefing.client.displayName}</h2>
+            <p className="client-email">{panelState.briefing.client.email}</p>
+            <div className="coverage-line">
+              <span className="coverage-count">{panelState.briefing.coverage.recordedMessageCount} recorded messages</span>
+              <span className="coverage-divider" aria-hidden="true">·</span>
+              <span>{panelState.briefing.coverage.completeness === 'partial' ? 'Partial history' : 'Coverage unknown'}</span>
             </div>
+            <p className="coverage-note">{panelState.briefing.coverage.importedMessageCount} imported · Only captured threads and imports are included.</p>
+          </section>
+
+          {engineStatus === 'ollama-live' && (
+            <p className="model-note" role="status">
+              New suggestions from local Qwen3 <span aria-hidden="true">·</span> Review before confirming
+            </p>
           )}
 
-          {/* Client Identity & Coverage Card */}
-          <div className="client-hero">
-            <h2 className="client-name">{panelState.briefing.client.displayName}</h2>
-            <div className="client-email">{panelState.briefing.client.email}</div>
-            <p className="client-notes">Context extracted from recorded messages</p>
-            <div className="coverage-pills">
-              <span className="pill">
-                {panelState.briefing.coverage.recordedMessageCount} recorded messages
-              </span>
-              <span className="pill">
-                {panelState.briefing.coverage.importedMessageCount} explicitly imported
-              </span>
-              <span className="pill">Exact quotations; interpretations require review</span>
+          <section className="brief-section" aria-labelledby="attention-heading">
+            <div className="section-heading">
+              <h2 id="attention-heading">Needs attention</h2>
+              <span className="section-count">{attentionItems.length}</span>
             </div>
-          </div>
-
-          <section className="history-tools" aria-label="Local history">
-            <p><strong>Partial history.</strong> Only captured Gmail threads or manually imported messages
-              are recorded. The mailbox is not synchronized. A missing recorded reply
-              does not prove that no reply was sent.</p>
-            <p>{clientHistory.filter((email) => !email.sentAt).length} messages with unknown dates.
-              {panelState.briefing.coverage.earliestSentAt && <> Known dates: {panelState.briefing.coverage.earliestSentAt} – {panelState.briefing.coverage.latestSentAt}.</>}</p>
-            <HistoryImportForm key={panelState.briefing.client.id} clientEmail={panelState.briefing.client.email}
-              busy={historyBusy} onImport={handleImport} />
-            <button className="btn" disabled={historyBusy || clientHistory.length === 0}
-              onClick={() => void handleAnalyzeHistory()}>
-              {historyBusy ? 'Analyzing history…' : 'Analyze history with Qwen3'}
-            </button>
-            {actionMessage && <p role="status">{actionMessage}</p>}
-            {activeThread.current && <button className="btn" disabled={historyBusy}
-              onClick={() => setCaptureAttempt((attempt) => attempt + 1)}>Retry thread capture</button>}
-            {activeEmail && <button className="btn" disabled={historyBusy}
-              onClick={() => void processEmail(activeEmail)}>Reopen current message</button>}
-          </section>
-
-          {/* Commitments & Agreements Section */}
-          <section className="section-card">
-            <h3 className="section-title">
-              Commitments
-              <span className="section-count">{commitments.length}</span>
-            </h3>
-            {commitments.length === 0 ? (
-              <p className="status">No commitments recorded.</p>
+            <p className="section-caption">Concerns and open commitments</p>
+            {attentionItems.length === 0 ? (
+              <p className="empty-list-note">No open concerns or commitments in recorded messages.</p>
             ) : (
-              commitments.map((item) => (
-                <div
-                  key={item.id}
-                  className={`item-card ${item.resolution === 'resolved' ? 'resolved' : ''}`}
-                >
-                  <div className="item-header">
-                    <p className="item-text">{item.text}</p>
-                    <span className="tag-badge tag-commitment">
-                      {item.resolution === 'resolved' ? 'Resolved' : 'Open'}
-                    </span>
-                  </div>
-
-                  <div className="evidence-box">
-                    &ldquo;{item.sourceExcerpt}&rdquo;
-                    <div className="evidence-meta">
-                      <span>Source: {item.sourceEmailId}</span>
-                      <span>Review: {item.review}</span>
-                      {item.review === 'suggested' ? (
-                        <span className={`origin-badge ${item.inference === 'ollama-live' ? 'origin-live' : 'origin-fallback'}`}>
-                          {item.inference === 'ollama-live' ? 'Suggested by Qwen3' : 'Origin not recorded'}
-                        </span>
-                      ) : (
-                        <span className="origin-badge" style={{ background: '#e2e8f0', color: '#475569' }}>
-                          Reviewed by manager
-                        </span>
-                      )}
+              <div className="context-list">
+                {attentionPreview.map((item) => <ContextRow key={item.id} item={item} onReview={handleReview} onToggleResolve={handleToggleResolve} />)}
+                {moreAttention.length > 0 && (
+                  <details className="more-items">
+                    <summary>Show {moreAttention.length} more</summary>
+                    <div className="context-list">
+                      {moreAttention.map((item) => <ContextRow key={item.id} item={item} onReview={handleReview} onToggleResolve={handleToggleResolve} />)}
                     </div>
-                  </div>
-
-                  <div className="item-actions">
-                    {item.review === 'suggested' && (
-                      <>
-                        <button
-                          className="btn btn-sm btn-primary"
-                          onClick={() => handleReview(item, 'confirmed')}
-                        >
-                          Confirm
-                        </button>
-                        <button
-                          className="btn btn-sm"
-                          onClick={() => handleReview(item, 'dismissed')}
-                        >
-                          Dismiss
-                        </button>
-                      </>
-                    )}
-                    <button
-                      className="btn btn-sm"
-                      onClick={() => handleToggleResolve(item)}
-                    >
-                      {item.resolution === 'resolved' ? 'Reopen' : 'Mark resolved'}
-                    </button>
-                  </div>
-                </div>
-              ))
-            )}
-          </section>
-
-          {/* Concerns Section */}
-          <section className="section-card">
-            <h3 className="section-title">
-              Client concerns
-              <span className="section-count">{concerns.length}</span>
-            </h3>
-            {concerns.length === 0 ? (
-              <p className="status">No concerns recorded.</p>
-            ) : (
-              concerns.map((item) => (
-                <div key={item.id} className="item-card">
-                  <div className="item-header">
-                    <p className="item-text">{item.text}</p>
-                    <span className="tag-badge tag-concern">Concern</span>
-                  </div>
-
-                  <div className="evidence-box">
-                    &ldquo;{item.sourceExcerpt}&rdquo;
-                    <div className="evidence-meta">
-                      <span>Source: {item.sourceEmailId}</span>
-                      {item.review === 'suggested' ? (
-                        <span className={`origin-badge ${item.inference === 'ollama-live' ? 'origin-live' : 'origin-fallback'}`}>
-                          {item.inference === 'ollama-live' ? 'Suggested by Qwen3' : 'Origin not recorded'}
-                        </span>
-                      ) : (
-                        <span className="origin-badge" style={{ background: '#e2e8f0', color: '#475569' }}>
-                          Reviewed by manager
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {item.review === 'suggested' && (
-                    <div className="item-actions">
-                      <button
-                        className="btn btn-sm btn-primary"
-                        onClick={() => handleReview(item, 'confirmed')}
-                      >
-                        Confirm
-                      </button>
-                      <button
-                        className="btn btn-sm"
-                        onClick={() => handleReview(item, 'dismissed')}
-                      >
-                        Dismiss
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ))
-            )}
-          </section>
-
-          {/* Goals & Preferences Section */}
-          <section className="section-card">
-            <h3 className="section-title">
-              Goals, preferences and recent signals
-              <span className="section-count">{goalsAndPreferences.length}</span>
-            </h3>
-            {goalsAndPreferences.map((item) => (
-              <div key={item.id} className="item-card">
-                <div className="item-header">
-                  <p className="item-text">{item.text}</p>
-                  <span className={`tag-badge tag-${item.kind}`}>{item.kind}</span>
-                </div>
-
-                <div className="evidence-box">
-                  &ldquo;{item.sourceExcerpt}&rdquo;
-                  <div className="evidence-meta">
-                    <span>Source: {item.sourceEmailId}</span>
-                    {item.review === 'suggested' ? (
-                      <span className={`origin-badge ${item.inference === 'ollama-live' ? 'origin-live' : 'origin-fallback'}`}>
-                        {item.inference === 'ollama-live' ? 'Suggested by Qwen3' : 'Origin not recorded'}
-                      </span>
-                    ) : (
-                      <span className="origin-badge" style={{ background: '#e2e8f0', color: '#475569' }}>
-                        Reviewed by manager
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {item.review === 'suggested' && (
-                  <div className="item-actions">
-                    <button
-                      className="btn btn-sm btn-primary"
-                      onClick={() => handleReview(item, 'confirmed')}
-                    >
-                      Confirm
-                    </button>
-                    <button
-                      className="btn btn-sm"
-                      onClick={() => handleReview(item, 'dismissed')}
-                    >
-                      Dismiss
-                    </button>
-                  </div>
+                  </details>
                 )}
               </div>
-            ))}
+            )}
+            {resolvedItems.length > 0 && (
+              <details className="resolved-items">
+                <summary>Resolved <span>{resolvedItems.length}</span></summary>
+                <div className="context-list">
+                  {resolvedItems.map((item) => <ContextRow key={item.id} item={item} onReview={handleReview} onToggleResolve={handleToggleResolve} />)}
+                </div>
+              </details>
+            )}
           </section>
 
-          {/* Collapsible history view */}
-          <div className="btn-group">
-            <button
-              className="btn btn-sm"
-              onClick={() => setShowHistory(!showHistory)}
-            >
-              {showHistory ? 'Hide recorded messages' : 'View recorded messages'}
-            </button>
-          </div>
+          <section className="brief-section secondary-section" aria-labelledby="context-heading">
+            <div className="section-heading">
+              <h2 id="context-heading">More context</h2>
+              <span className="section-count">{otherContext.length}</span>
+            </div>
+            <p className="section-caption">Goals, preferences and recent signals</p>
+            {otherContext.length === 0 ? (
+              <p className="empty-list-note">No goals, preferences, or signals recorded.</p>
+            ) : (
+              <div className="context-list">
+                {contextPreview.map((item) => <ContextRow key={item.id} item={item} onReview={handleReview} onToggleResolve={handleToggleResolve} />)}
+                {moreContext.length > 0 && (
+                  <details className="more-items">
+                    <summary>Show {moreContext.length} more</summary>
+                    <div className="context-list">
+                      {moreContext.map((item) => <ContextRow key={item.id} item={item} onReview={handleReview} onToggleResolve={handleToggleResolve} />)}
+                    </div>
+                  </details>
+                )}
+              </div>
+            )}
+          </section>
+
+          <button className="history-toggle" aria-expanded={showHistory} onClick={() => setShowHistory(!showHistory)}>
+            <span>History & tools</span>
+            <span className="history-toggle-meta">{clientHistory.length} messages</span>
+            <svg className={showHistory ? 'is-open' : ''} viewBox="0 0 20 20" aria-hidden="true"><path d="m6 8 4 4 4-4" /></svg>
+          </button>
 
           {showHistory && (
-            <section className="section-card">
-              <h3 className="section-title">Recorded messages</h3>
-              {clientHistory.map((email) => (
-                <div key={email.id} className="item-card">
-                  <div className="item-header">
-                    <strong>{email.subject}</strong>
-                    <span className="tag-badge">
-                      {email.direction === 'outgoing' ? 'Manager' : 'Client'}
-                    </span>
-                  </div>
-                  <div style={{ fontSize: '0.75rem', color: '#64748b' }}>
-                    {email.sentAt ?? 'Unknown date'} · From: {email.senderEmail}
-                    {email.recipientEmail && <> · To: {email.recipientEmail}</>}
-                    <div>{email.source === 'demo-import' ? 'Manually imported (fictional)' : 'Captured automatically from the open Gmail thread'}</div>
-                  </div>
-                  <p style={{ margin: '6px 0 0', fontSize: '0.8rem' }}>{email.body}</p>
-                </div>
-              ))}
+            <section className="history-panel" aria-label="History and tools">
+              <p className="history-limit">History is partial; the mailbox is not synchronized. A missing reply in recorded messages does not prove none was sent.</p>
+              <p className="history-dates">
+                {clientHistory.filter((email) => !email.sentAt).length} messages have unknown dates
+                {panelState.briefing.coverage.earliestSentAt && <> · {panelState.briefing.coverage.earliestSentAt} – {panelState.briefing.coverage.latestSentAt}</>}
+              </p>
+              <HistoryImportForm key={panelState.briefing.client.id} clientEmail={panelState.briefing.client.email} busy={historyBusy} onImport={handleImport} />
+              <button className="btn" disabled={historyBusy || clientHistory.length === 0} onClick={() => void handleAnalyzeHistory()}>
+                {historyBusy ? 'Analyzing history…' : 'Analyze history with Qwen3'}
+              </button>
+              {activeThread.current && <button className="btn" disabled={historyBusy} onClick={() => setCaptureAttempt((attempt) => attempt + 1)}>Retry thread capture</button>}
+              {activeEmail && <button className="btn" disabled={historyBusy} onClick={() => void processEmail(activeEmail)}>Reanalyze current message</button>}
+              <div className="recorded-messages">
+                <h3>Recorded messages</h3>
+                {clientHistory.length === 0 ? <p>No messages recorded.</p> : clientHistory.map((email) => (
+                  <details className="recorded-message" key={email.id}>
+                    <summary>
+                      <span className={`message-direction is-${email.direction}`}>
+                        <svg viewBox="0 0 20 20" aria-hidden="true"><path d={email.direction === 'outgoing' ? 'M5 15 15 5M6 5h9v9' : 'M15 5 5 15M5 6v9h9'} /></svg>
+                        <span className="sr-only">{email.direction === 'outgoing' ? 'Manager reply:' : 'Client message:'}</span>
+                      </span>
+                      <span className="message-summary-copy">{email.subject}</span>
+                      <span className="message-date">{email.sentAt ?? 'Date unknown'}</span>
+                    </summary>
+                    <p className="message-origin">{email.direction === 'outgoing' ? 'Manager reply' : 'Client message'} · {email.source === 'demo-import' ? 'Imported fictional history' : 'Captured from open Gmail thread'}</p>
+                    <p className="message-body">{email.body}</p>
+                    <p className="message-address">From {email.senderEmail}{email.recipientEmail && <> · To {email.recipientEmail}</>}</p>
+                  </details>
+                ))}
+              </div>
             </section>
           )}
         </>
       )}
 
-      <footer>
-        <span>Hacktoberfest Barcelona</span>
-        <span>Local Client Assistant</span>
-      </footer>
+      <footer className="app-footer">Local processing <span aria-hidden="true">·</span> Manager-reviewed context</footer>
     </main>
   );
 }
