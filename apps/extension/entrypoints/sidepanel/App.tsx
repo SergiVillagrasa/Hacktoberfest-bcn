@@ -16,6 +16,7 @@ import {
   SAMPLE_HISTORICAL_EMAILS,
   createClientProfileForTestInbox,
   createHistoricalEmailsForTestInbox,
+  type InferenceEngineStatus,
 } from '@briefing/infra';
 import '../../assets/panel.css';
 
@@ -41,6 +42,16 @@ export function App() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [clientHistory, setClientHistory] = useState<EmailContext[]>([]);
+  const [engineStatus, setEngineStatus] = useState<InferenceEngineStatus>('idle');
+
+  // Check Ollama daemon health on startup
+  useEffect(() => {
+    async function checkHealth() {
+      const isLive = await inferenceAdapter.checkOllamaHealth();
+      setEngineStatus(isLive ? 'ollama-live' : 'offline-fallback');
+    }
+    void checkHealth();
+  }, [inferenceAdapter]);
 
   // Seed default demo client if empty
   useEffect(() => {
@@ -93,6 +104,7 @@ export function App() {
         // Save visible message and run AI analysis
         await service.captureEmail(email);
         await service.analyzeEmail(email, profile);
+        setEngineStatus(inferenceAdapter.getLastInferenceMode());
 
         const briefing = await service.getBriefing(email.senderEmail);
         if (briefing) {
@@ -111,7 +123,7 @@ export function App() {
         setIsAnalyzing(false);
       }
     },
-    [profilePort, historyPort, service]
+    [profilePort, historyPort, inferenceAdapter, service]
   );
 
   // Listen for Gmail messages from the content script
@@ -189,7 +201,23 @@ export function App() {
       <header>
         <div className="brand-title">
           <h1>Assessor Bancari AI</h1>
-          <span className="badge-live">Gmail Live</span>
+          <div className="engine-status-badge-wrapper">
+            {engineStatus === 'ollama-live' && (
+              <span className="badge-engine live" title="IA Local activa: connectat a Ollama (http://127.0.0.1:11434)">
+                ● Ollama Qwen3
+              </span>
+            )}
+            {engineStatus === 'offline-fallback' && (
+              <span className="badge-engine fallback" title="Ollama offline: Utilitzant motor de seguretat offline amb cites literals">
+                ⚠ Fallback Offline
+              </span>
+            )}
+            {engineStatus === 'idle' && (
+              <span className="badge-engine idle">
+                ○ Comprovant IA...
+              </span>
+            )}
+          </div>
         </div>
         <p className="subtitle">Extracció de context i pactes comercials en temps real</p>
 
@@ -262,6 +290,24 @@ export function App() {
       {/* Ready / Briefing State */}
       {!isAnalyzing && panelState.status === 'ready' && (
         <>
+          {/* Active Engine Notice Banner */}
+          {engineStatus === 'offline-fallback' && (
+            <div className="engine-banner banner-fallback">
+              <span className="engine-banner-icon">⚠️</span>
+              <div className="engine-banner-text">
+                <strong>Mode Fallback Offline actiu:</strong> Ollama no està arrencat a <code>127.0.0.1:11434</code>. L&apos;assistent utilitza el motor de seguretat amb cites literals per garantir la continuïtat del servei.
+              </div>
+            </div>
+          )}
+          {engineStatus === 'ollama-live' && (
+            <div className="engine-banner banner-live">
+              <span className="engine-banner-icon">🟢</span>
+              <div className="engine-banner-text">
+                <strong>Model Qwen3 en directe:</strong> La IA local d&apos;Ollama està analitzant i generant observacions en temps real.
+              </div>
+            </div>
+          )}
+
           {/* Client Identity & Coverage Card */}
           <div className="client-hero">
             <h2 className="client-name">{panelState.briefing.client.displayName}</h2>
@@ -304,6 +350,15 @@ export function App() {
                     <div className="evidence-meta">
                       <span>Font: {item.sourceEmailId}</span>
                       <span>Estat: {item.review}</span>
+                      {item.review === 'suggested' ? (
+                        <span className={`origin-badge ${engineStatus === 'ollama-live' ? 'origin-live' : 'origin-fallback'}`}>
+                          {engineStatus === 'ollama-live' ? 'Sugerit per Qwen3' : 'Sugerit per Fallback Offline'}
+                        </span>
+                      ) : (
+                        <span className="origin-badge" style={{ background: '#e2e8f0', color: '#475569' }}>
+                          Historial Bancari
+                        </span>
+                      )}
                     </div>
                   </div>
 
@@ -356,6 +411,15 @@ export function App() {
                     &ldquo;{item.sourceExcerpt}&rdquo;
                     <div className="evidence-meta">
                       <span>Font: {item.sourceEmailId}</span>
+                      {item.review === 'suggested' ? (
+                        <span className={`origin-badge ${engineStatus === 'ollama-live' ? 'origin-live' : 'origin-fallback'}`}>
+                          {engineStatus === 'ollama-live' ? 'Sugerit per Qwen3' : 'Sugerit per Fallback Offline'}
+                        </span>
+                      ) : (
+                        <span className="origin-badge" style={{ background: '#e2e8f0', color: '#475569' }}>
+                          Historial Bancari
+                        </span>
+                      )}
                     </div>
                   </div>
 
@@ -397,6 +461,15 @@ export function App() {
                   &ldquo;{item.sourceExcerpt}&rdquo;
                   <div className="evidence-meta">
                     <span>Font: {item.sourceEmailId}</span>
+                    {item.review === 'suggested' ? (
+                      <span className={`origin-badge ${engineStatus === 'ollama-live' ? 'origin-live' : 'origin-fallback'}`}>
+                        {engineStatus === 'ollama-live' ? 'Sugerit per Qwen3' : 'Sugerit per Fallback Offline'}
+                      </span>
+                    ) : (
+                      <span className="origin-badge" style={{ background: '#e2e8f0', color: '#475569' }}>
+                        Historial Bancari
+                      </span>
+                    )}
                   </div>
                 </div>
 

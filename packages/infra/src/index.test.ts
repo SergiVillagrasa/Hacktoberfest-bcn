@@ -62,5 +62,6 @@ describe('OllamaInferenceAdapter', () => {
       expect(match).toBeDefined();
       expect(match?.body.includes(c.sourceExcerpt)).toBe(true);
     }
+    expect(adapter.getLastInferenceMode()).toBe('offline-fallback');
   });
 });

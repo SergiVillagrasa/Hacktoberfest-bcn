@@ -28,11 +28,32 @@ const VALID_KINDS: readonly ContextKind[] = [
   'communication_signal',
 ];
 
+export type InferenceEngineStatus = 'ollama-live' | 'offline-fallback' | 'idle';
+
 export class OllamaInferenceAdapter implements InferencePort {
   private config: Required<OllamaAdapterConfig>;
+  private lastInferenceMode: InferenceEngineStatus = 'idle';
 
   constructor(config: OllamaAdapterConfig = {}) {
     this.config = { ...DEFAULT_CONFIG, ...config };
+  }
+
+  getLastInferenceMode(): InferenceEngineStatus {
+    return this.lastInferenceMode;
+  }
+
+  async checkOllamaHealth(): Promise<boolean> {
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 1200);
+      const res = await fetch(`${this.config.baseUrl}/api/tags`, {
+        signal: controller.signal,
+      });
+      clearTimeout(timer);
+      return res.ok;
+    } catch {
+      return false;
+    }
   }
 
   async extract(input: {
@@ -112,9 +133,12 @@ Extract up to 5 observations as JSON.`;
 
       const data = (await response.json()) as { message?: { content?: string } };
       const rawContent = data.message?.content || '{}';
-      return this.parseCandidateResponse(rawContent, input.email, input.sources);
+      const candidates = this.parseCandidateResponse(rawContent, input.email, input.sources);
+      this.lastInferenceMode = 'ollama-live';
+      return candidates;
     } catch (error) {
       if (this.config.useFallbackOnOffline) {
+        this.lastInferenceMode = 'offline-fallback';
         return this.getOfflineFallbackCandidates(input.email, input.sources);
       }
       throw error;
