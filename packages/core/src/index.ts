@@ -8,6 +8,7 @@ export type {
   EmailContext,
   HistoryCoverage,
   HistoryImport,
+  CapturedThread,
   PanelState,
 } from '@briefing/contracts';
 
@@ -19,6 +20,7 @@ import type {
   EmailContext,
   HistoryCoverage,
   HistoryImport,
+  CapturedThread,
 } from '@briefing/contracts';
 
 // Exact matching is an application rule. Never fall back to the last client.
@@ -55,8 +57,13 @@ export type AnalysisResult =
   | { status: 'no-client' }
   | { status: 'analyzed'; clientId: string; suggestions: ContextItem[]; cached?: boolean };
 
+export type ThreadContextResult =
+  | { status: 'no-client'; senderEmail: string }
+  | { status: 'ready'; briefing: ClientBriefing; emails: EmailContext[]; analyzed: number; cached: number; analysisError?: string };
+
 // Handlers invoke one core action per interaction; adapters implement injected ports.
 export interface ClientContextUseCases {
+  openThread(thread: CapturedThread): Promise<ThreadContextResult>;
   captureEmail(email: EmailContext): Promise<void>;
   importHistory(clientId: string, emails: readonly EmailContext[]): Promise<HistoryCoverage>;
   importGmailThread(data: HistoryImport): Promise<{ briefing: ClientBriefing; emails: EmailContext[] }>;

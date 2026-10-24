@@ -17,7 +17,7 @@ Unknown senders require explicit registration, which creates an empty client
 record. No profiles, history or answers are seeded from message keywords.
 Ollama failures show an unavailable state; no scripted answers are substituted.
 See the [acceptance checklist](docs/sergi/implementation-checklist.md) for remaining
-integration and demo checks. Explicit JSON history import, an expanded Gmail-thread preview/import action including manager replies, and persistent analysis caching are available in the English-language panel. See the [import and rehearsal guide](docs/sergi/history-import.md).
+integration and demo checks. Opening a Gmail thread automatically captures its incoming messages and manager replies, expands collapsed message headers, and stores/analyzes context for the registered client. JSON history import and persistent analysis caching are available in the English-language panel. See the [import and rehearsal guide](docs/sergi/history-import.md).
 
 ```text
 architecture.md                    Protected architecture

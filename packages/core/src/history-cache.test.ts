@@ -181,3 +181,61 @@ describe('successful-analysis cache', () => {
     expect(cache.size).toBe(0);
   });
 });
+
+
+describe('automatic open-thread context', () => {
+  const thread = { version: 1 as const, threadId: 'https://mail.google.com/#inbox/thread', managerEmail: outgoing.senderEmail,
+    messages: [incoming, outgoing].map((email) => ({ ...email, source: 'gmail' as const })) };
+
+  it('stores both directions, analyzes once, and preserves reviewed results on reopen', async () => {
+    const { service, history, extract, profile } = setup();
+    const first = await service.openThread(thread);
+    expect(first.status).toBe('ready');
+    expect(history.get('client')).toHaveLength(2);
+    expect(history.get('client')?.every((email) => email.source === 'gmail')).toBe(true);
+    const promise = profile().items.find((item) => item.kind === 'commitment')!;
+    await service.reviewItem('client', promise.id, 'confirmed');
+    const second = await service.openThread(thread);
+    expect(second.status === 'ready' && second.cached).toBe(2);
+    expect(extract).toHaveBeenCalledTimes(2);
+    expect(profile().items.find((item) => item.id === promise.id)?.review).toBe('confirmed');
+    expect(history.get('client')).toHaveLength(2);
+  });
+
+  it('updates changed captures without adding a second copy', async () => {
+    const { service, history, extract } = setup();
+    await service.openThread(thread);
+    await service.openThread({ ...thread, messages: thread.messages.map((email) => email.id === incoming.id ? { ...email, body: 'Changed question' } : email) });
+    expect(history.get('client')).toHaveLength(2);
+    expect(history.get('client')?.find((email) => email.id === incoming.id)?.body).toBe('Changed question');
+    expect(extract).toHaveBeenCalledTimes(4);
+  });
+
+  it('does not save or infer an unknown client until registration', async () => {
+    const { service, profiles, history, extract } = setup();
+    profiles.clear();
+    expect(await service.openThread(thread)).toEqual({ status: 'no-client', senderEmail: incoming.senderEmail });
+    expect(history.size).toBe(0);
+    expect(extract).not.toHaveBeenCalled();
+    await service.registerClient(incoming.senderEmail);
+    expect((await service.openThread(thread)).status).toBe('ready');
+  });
+
+  it('rejects mixed participants and missing recipients before saving', async () => {
+    const { service, history, extract } = setup();
+    await expect(service.openThread({ ...thread, messages: [...thread.messages, { ...thread.messages[0]!, id: 'other', senderEmail: 'other@example.test' }] })).rejects.toThrow('multiple external');
+    await expect(service.openThread({ ...thread, messages: [{ ...thread.messages[1]!, recipientEmail: undefined }] } as never)).rejects.toThrow('recipient');
+    expect(history.size).toBe(0);
+    expect(extract).not.toHaveBeenCalled();
+  });
+
+  it('keeps captured history and exposes errors when Ollama is offline, then retries', async () => {
+    const { service, history, extract } = setup();
+    extract.mockRejectedValueOnce(new Error('Offline'));
+    const result = await service.openThread(thread);
+    expect(result.status === 'ready' && result.analysisError).toBe('Offline');
+    expect(history.get('client')).toHaveLength(2);
+    expect((await service.openThread(thread)).status).toBe('ready');
+    expect(extract).toHaveBeenCalledTimes(3);
+  });
+});

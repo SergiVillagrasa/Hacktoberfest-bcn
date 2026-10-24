@@ -4,7 +4,7 @@ import type {
   ContextItem,
   EmailContext,
   PanelState,
-  HistoryImport,
+  CapturedThread,
 } from '@briefing/contracts';
 import { isCaptureMessage } from '@briefing/contracts';
 import { ClientContextService } from '@briefing/core';
@@ -18,11 +18,12 @@ import {
 } from '@briefing/infra';
 import '../../assets/panel.css';
 import { browser } from 'wxt/browser';
-import { GmailThreadImport } from '../../components/history/GmailThreadImport';
 import { HistoryImportForm } from '../../components/history/HistoryImportForm';
 import { SelectionGuard } from '../../lib/selection-guard';
 
 export function App() {
+  const activeTabId = useRef<number | undefined>(undefined);
+  const panelWindowId = useRef<number | undefined>(undefined);
   const selection = useRef(new SelectionGuard()).current;
   const profilePort = useMemo(() => new LocalStorageProfilePort(), []);
   const historyPort = useMemo(() => new LocalStorageHistoryPort(), []);
@@ -44,6 +45,7 @@ export function App() {
 
   const [captureAttempt, setCaptureAttempt] = useState(0);
   const [panelState, setPanelState] = useState<PanelState>({ status: 'empty' });
+  const activeThread = useRef<CapturedThread | null>(null);
   const [activeEmail, setActiveEmail] = useState<EmailContext | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
@@ -94,19 +96,53 @@ export function App() {
     [inferenceAdapter, service, selection]
   );
 
+  const processThread = useCallback(async (thread: CapturedThread, requestId: string = crypto.randomUUID()) => {
+    const generation = selection.begin();
+    activeThread.current = thread;
+    setPanelState({ status: 'loading', requestId });
+    setActiveEmail(null);
+    setClientHistory([]);
+    setShowHistory(false);
+    setActionMessage('');
+    setHistoryBusy(false);
+    setAnalysisCached(false);
+    setEngineStatus('idle');
+    setIsAnalyzing(true);
+    try {
+      const result = await service.openThread(thread);
+      if (!selection.isCurrent(generation)) return;
+      if (result.status === 'no-client') {
+        setPanelState(result);
+      } else {
+        setPanelState({ status: 'ready', requestId, briefing: result.briefing });
+        setClientHistory(result.emails);
+        setAnalysisCached(!result.analysisError && result.analyzed === 0 && result.cached > 0);
+        setEngineStatus(result.analyzed > 0 ? 'ollama-live' : 'idle');
+        setActionMessage(result.analysisError
+          ? `Thread saved. Analysis incomplete: ${result.analysisError}. Retry after checking Ollama.`
+          : `Thread saved automatically. ${result.analyzed} new analyses; ${result.cached} reused from cache.`);
+      }
+    } catch (error) {
+      if (selection.isCurrent(generation)) setPanelState({ status: 'unavailable', reason: error instanceof Error ? error.message : 'Thread processing failed.' });
+    } finally {
+      if (selection.isCurrent(generation)) setIsAnalyzing(false);
+    }
+  }, [service, selection]);
+
   // Listen for Gmail messages from the content script
   useEffect(() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const chromeApi = (globalThis as any).chrome;
     if (!chromeApi?.runtime?.onMessage) return;
 
-    function handleMessage(message: unknown, sender?: { id?: string; url?: string; tab?: { active?: boolean } }) {
-      if (sender && (sender.id !== browser.runtime.id || !sender.url?.startsWith('https://mail.google.com/') || !sender.tab?.active)) return;
+    function handleMessage(message: unknown, sender?: { id?: string; url?: string; tab?: { active?: boolean; id?: number } }) {
+      if (sender && (sender.id !== browser.runtime.id || !sender.url?.startsWith('https://mail.google.com/') || !sender.tab?.active || sender.tab.id !== activeTabId.current)) return;
       if (!isCaptureMessage(message)) return;
       const capture = message as CaptureMessage;
 
       if (capture.type === 'email/cleared') {
         selection.begin();
+        activeThread.current = null;
         setEngineStatus('idle');
         setActionMessage('');
         setAnalysisCached(false);
@@ -116,15 +152,42 @@ export function App() {
         setIsAnalyzing(false);
         setActiveEmail(null);
         setPanelState({ status: 'empty', ...(capture.reason ? { reason: capture.reason } : {}) });
+      } else if (capture.type === 'thread/captured') {
+        void processThread(capture.thread, capture.requestId);
+      } else if (capture.type === 'capture/error') {
+        selection.begin();
+        activeThread.current = null;
+        setActiveEmail(null);
+        setClientHistory([]);
+        setIsAnalyzing(false);
+        setHistoryBusy(false);
+        setEngineStatus('idle');
+        setAnalysisCached(false);
+        setPanelState({ status: 'unavailable', reason: capture.reason });
       } else if (capture.type === 'email/captured') {
         void processEmail(capture.email, capture.requestId);
       }
     }
 
     chromeApi.runtime.onMessage.addListener(handleMessage);
+    const onTabActivated = (info: { tabId: number; windowId: number }) => {
+      if (panelWindowId.current !== undefined && info.windowId !== panelWindowId.current) return;
+      activeTabId.current = info.tabId;
+      selection.begin();
+      activeThread.current = null;
+      setActiveEmail(null);
+      setClientHistory([]);
+      setIsAnalyzing(false);
+      setHistoryBusy(false);
+      setPanelState({ status: 'empty' });
+      setCaptureAttempt((attempt) => attempt + 1);
+    };
+    browser.tabs.onActivated.addListener(onTabActivated);
     const generation = selection.snapshot();
     void browser.tabs.query({ active: true, currentWindow: true }).then(async ([tab]) => {
       if (tab?.id === undefined) throw new Error('No active Gmail tab');
+      activeTabId.current = tab.id;
+      panelWindowId.current = tab.windowId;
       const replay: unknown = await browser.tabs.sendMessage(tab.id, { type: 'capture/current' });
       if (!isCaptureMessage(replay)) throw new Error('Invalid capture response');
       if (selection.isCurrent(generation)) handleMessage(replay);
@@ -134,8 +197,9 @@ export function App() {
     return () => {
       selection.begin();
       chromeApi.runtime.onMessage.removeListener(handleMessage);
+      browser.tabs.onActivated.removeListener(onTabActivated);
     };
-  }, [processEmail, selection, captureAttempt]);
+  }, [processEmail, processThread, selection, captureAttempt]);
 
   // Actions for manager review & resolution
   const handleReview = async (item: ContextItem, review: 'confirmed' | 'dismissed') => {
@@ -161,8 +225,9 @@ export function App() {
   const handleBindClientManually = async (emailAddress: string) => {
     const generation = selection.snapshot();
     await service.registerClient(emailAddress);
-    if (selection.isCurrent(generation) && activeEmail) {
-      void processEmail(activeEmail);
+    if (selection.isCurrent(generation)) {
+      if (activeThread.current) void processThread(activeThread.current);
+      else if (activeEmail) void processEmail(activeEmail);
     }
   };
 
@@ -176,18 +241,6 @@ export function App() {
       setClientHistory(updated.emails);
       setAnalysisCached(false);
       setEngineStatus('idle');
-    }
-  };
-
-  const handleThreadImport = async (data: HistoryImport) => {
-    const generation = selection.snapshot();
-    const result = await service.importGmailThread(data);
-    if (selection.isCurrent(generation)) {
-      setPanelState({ status: 'ready', requestId: crypto.randomUUID(), briefing: result.briefing });
-      setClientHistory(result.emails);
-      setEngineStatus('idle');
-      setAnalysisCached(false);
-      setActionMessage('Thread imported as fictional history. Analyze it to generate suggestions.');
     }
   };
 
@@ -234,7 +287,7 @@ export function App() {
 
   const captureReason = panelState.status === 'empty' ? panelState.reason : undefined;
   const captureGuidance = captureReason === 'outgoing-message'
-    ? { title: 'Manager reply open', text: 'This is an outgoing reply. Use “Preview expanded thread” to import this reply together with the expanded client messages, or collapse it to analyze a single incoming message.' }
+    ? { title: 'Manager reply open', text: 'The current thread is captured automatically, including manager replies. Retry thread capture if it has not loaded.' }
     : captureReason === 'account-unavailable'
       ? { title: 'Gmail account could not be identified', text: 'Reload Gmail and retry capture. Account identity is needed to distinguish incoming messages from your replies.' }
       : captureReason === 'message-unreadable'
@@ -280,22 +333,18 @@ export function App() {
           ) : (
             <>
               <span className="live-dot waiting" />
-              <span className="active-email-info">{panelState.status === 'ready' ? 'Imported thread history' : captureGuidance.title}</span>
+              <span className="active-email-info">{panelState.status === 'ready' ? 'Current Gmail thread' : captureGuidance.title}</span>
             </>
           )}
         </div>
       </header>
-
-      <GmailThreadImport key={selection.snapshot()} disabled={isAnalyzing || historyBusy}
-        {...(panelState.status === 'ready' ? { clientEmail: panelState.briefing.client.email } : {})}
-        onImport={handleThreadImport} />
 
       {/* Loading state */}
       {isAnalyzing && (
         <div className="state-box">
           <div className="analysis-spinner" />
           <h2>Analyzing with the local model…</h2>
-          <p>Extracting observations and source evidence from the current message with local AI.</p>
+          <p>Reading the open thread and analyzing new or changed messages with local AI.</p>
           <span className="analysis-hint">Using local Ollama Qwen3</span>
         </div>
       )}
@@ -306,7 +355,7 @@ export function App() {
           <h2>{captureGuidance.title}</h2>
           <p>{captureGuidance.text}</p>
           <button className="btn" onClick={() => setCaptureAttempt((attempt) => attempt + 1)}>
-            Retry message capture
+            Retry thread capture
           </button>
         </div>
       )}
@@ -337,7 +386,8 @@ export function App() {
         <div className="state-box">
           <h2>Service unavailable</h2>
           <p>{panelState.reason}</p>
-          <p>Check Ollama and try again. No substitute answers are generated.</p>
+          <p>Check the capture details above and retry. If analysis failed, check Ollama.</p>
+          <button className="btn" onClick={() => setCaptureAttempt((attempt) => attempt + 1)}>Retry thread capture</button>
           {activeEmail && <button className="btn" onClick={() => void processEmail(activeEmail)}>Try again</button>}
         </div>
       )}
@@ -372,7 +422,7 @@ export function App() {
           </div>
 
           <section className="history-tools" aria-label="Local history">
-            <p><strong>Partial history.</strong> Only messages opened in Gmail or manually imported
+            <p><strong>Partial history.</strong> Only captured Gmail threads or manually imported messages
               are recorded. The mailbox is not synchronized. A missing recorded reply
               does not prove that no reply was sent.</p>
             <p>{clientHistory.filter((email) => !email.sentAt).length} messages with unknown dates.
@@ -384,6 +434,8 @@ export function App() {
               {historyBusy ? 'Analyzing history…' : 'Analyze history with Qwen3'}
             </button>
             {actionMessage && <p role="status">{actionMessage}</p>}
+            {activeThread.current && <button className="btn" disabled={historyBusy}
+              onClick={() => setCaptureAttempt((attempt) => attempt + 1)}>Retry thread capture</button>}
             {activeEmail && <button className="btn" disabled={historyBusy}
               onClick={() => void processEmail(activeEmail)}>Reopen current message</button>}
           </section>
@@ -581,7 +633,7 @@ export function App() {
                   <div style={{ fontSize: '0.75rem', color: '#64748b' }}>
                     {email.sentAt ?? 'Unknown date'} · From: {email.senderEmail}
                     {email.recipientEmail && <> · To: {email.recipientEmail}</>}
-                    <div>{email.source === 'demo-import' ? 'Manually imported (fictional)' : 'Captured from the open Gmail message'}</div>
+                    <div>{email.source === 'demo-import' ? 'Manually imported (fictional)' : 'Captured automatically from the open Gmail thread'}</div>
                   </div>
                   <p style={{ margin: '6px 0 0', fontSize: '0.8rem' }}>{email.body}</p>
                 </div>

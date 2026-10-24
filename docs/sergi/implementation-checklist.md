@@ -1,141 +1,121 @@
-# Project implementation checklist
+# Product completion checklist
 
-Use this as the project manager's acceptance checklist. Tick an item when you
-have seen it work in a review, test result, or demo. Keep the evidence in the
-relevant PR or demo notes; this page tracks completion, not implementation detail.
-Owner labels show who should lead or share each item. Albert and Joana work
-jointly across both feature areas; they agree on the concrete split as they go.
+This checklist defines acceptance for the finished Client Briefing product. The
+goal is a dependable, clear, locally installed Chrome extension that helps a
+relationship manager review fictional client context with evidence. It is not an
+event demo checklist. Product quality includes the complete user journey, safe
+client isolation, honest history coverage, understandable failures, and usable
+documentation.
 
-## Audit — 24 October 2026
+The architecture remains authoritative for technical and data boundaries:
+TypeScript/Bun workspace, Chrome Side Panel, local Ollama `qwen3:1.7b`,
+`chrome.storage.local`, fictional data, no Gmail OAuth or mailbox-wide sync, and
+no automatic financial decisions or email sending. “Product” here means a
+finished deliverable within those boundaries, not approval for real banking use.
 
-Source review and automated checks on `fix/remove-scripted-answers` establish the
-items below. Existing checked event/demo items retain their earlier team evidence;
-this audit did not repeat them in Chrome.
+Sergi owns all remaining work and acceptance. Completed items below are based on
+the recorded implementation and verification evidence; remaining items should
+be checked only after direct acceptance. Keep fresh Chrome findings and command
+results with the relevant change or release notes.
 
-- [x] Remove keyword-driven extraction and automatic demo profile/history seeding.
-  Unknown senders require explicit registration of an empty client record.
-- [x] Remove simulation controls and substitute sample history from the panel.
-- [x] Ollama connection/malformed-response failures reject instead of generating
-  scripted answers; valid empty model output remains valid. (`ollama.test.ts`)
-- [x] Remove persisted fallback/unattributed observations and known bundled demo
-  messages when accessed; keep reviewed live-model results and captured messages.
-  (`packages/infra/src/index.test.ts`)
-- [x] Root `bun run typecheck`, `bun run test` and `bun run build` pass on this
-  branch (45 Vitest tests). Browser acceptance is still pending.
+## Implemented and verified
 
-### History import and cache implementation
+### Product foundation and local AI
 
-- [x] Explicit bounded JSON import UI, including manager replies with client
-  recipients; ownership and source-ID conflicts validated in core. Imports merge
-  captured history and never seed model answers or confirmed facts.
-- [x] Recorded history labels manual imports/Gmail captures, message direction,
-  unknown dates and partial coverage; no mailbox synchronization is implied.
-- [x] Separate history-analysis action uses live Qwen, with persistent per-client/
-  message/source/revision caching and preserved review/resolution states.
-- [x] Automated regression coverage includes invalid/cross-client imports,
-  manager replies, persisted cache reuse, changed history, retries, empty results,
-  unsupported evidence and overlapping inference. Root checks: 82 Vitest tests,
-  typecheck and build pass on `feat/history-import-cache`.
-- [x] Fresh-profile Chromium smoke check passes using synthetic Gmail DOM and
-  mocked HTTP inference: import, review/cache persistence, navigation, invalid
-  import rejection, failure/retry and no horizontal overflow at 320/480px.
-- [x] Fresh-profile Chromium with real local `qwen3:1.7b` produces an imported
-  manager commitment with exact evidence and suggested review state. Repeating
-  analysis uses cached results (three model requests total, zero on repeat).
-  Gmail markup was synthetic; the model and local extension request were real.
-- [x] Capture diagnostics distinguish outgoing manager replies, missing account
-  identity, unreadable markup and disconnected content scripts; retry is exposed.
-  Parser/message tests and synthetic Chromium navigation cover the outgoing case.
-- [x] Approved explicit expanded-thread preview/import supports incoming client
-  messages and manager replies. Core validates participants/recipients; preview
-  revalidation rejects changed threads. Collapsed messages are excluded.
-- [x] Frontend labels, help, comments and exposed errors use English; original
-  email bodies/excerpts are preserved. Synthetic Chromium checks cover the new
-  English thread-import flow and existing JSON/review/cache behavior.
-- [x] Fresh Chromium expanded-thread import also passes with real local Qwen:
-  two expanded messages, one manager reply, exact suggested evidence, two model
-  requests total and no additional request on repeated analysis. Gmail DOM remains
-  synthetic; source/recipient rejection and cache behavior are exercised.
-- [ ] Actual signed-in Gmail + toolbar side-panel rehearsal by Sergi; follow the
-  [manual guide](history-import.md). Automated fixture checks do not close this item.
+- [x] Bun workspace separates contracts, core rules, infrastructure adapters,
+  and the Chrome extension UI.
+- [x] Ollama `qwen3:1.7b` produces bounded suggestions with exact source excerpts;
+  unavailable or invalid model responses do not produce scripted answers.
+- [x] Suggestions remain distinct from manager-confirmed context. Client matching
+  and evidence validation are application rules, and unknown clients receive no
+  other client's history.
+- [x] No seeded client profile, canned answer, or substitute sample history is
+  loaded into the product.
 
-### Remaining work, in priority order
+### Gmail capture and history
 
-1. Complete the [signed-in Chrome rehearsal](history-import.md#manual-acceptance-in-your-signed-in-chrome)
-   for real Gmail capture, import, cache reuse, review persistence, unknown sender
-   navigation and unavailable-service behavior.
-2. Complete the briefing: prioritize/cap current concerns and open commitments,
-   separate recent message-specific signals, collapse source evidence, and support
-   resolving concerns in the panel as well as commitments. Core supports both.
-3. Review the completed import/client-isolation integration with another teammate.
-   Registration and current-message orchestration now call core actions.
-4. Rehearse startup with a teammate and measure the three context questions.
-   Preference-change review and reply drafting remain deferred.
+- [x] Opening the current Gmail conversation automatically expands and captures
+  its visible incoming messages and manager replies, preserving per-message IDs,
+  direction, exact text, and available participant metadata.
+- [x] Capture is bounded to the currently open thread. It does not search or
+  synchronize the mailbox, and navigation clears stale context.
+- [x] Core validates a single external client and manager recipients before
+  saving. Unknown clients require explicit registration; ambiguous ownership
+  fails without exposing another profile.
+- [x] Capture is deduplicated by message ID. History is stored before inference,
+  and model failures preserve the captured messages for retry.
+- [x] Explicit fictional JSON history import supports incoming messages and
+  manager replies, validates ownership and size limits, and merges without
+  creating confirmed facts.
+- [x] The UI distinguishes Gmail-captured and manually imported messages, labels
+  partial/unknown history, and preserves source-language email text and excerpts.
+- [x] Persistent analysis caching reuses unchanged results, including valid
+  empty results, and preserves manager review/resolution state.
 
-## Shared foundation and kickoff
+### Automated and synthetic-browser verification
 
-- [x] The foundation is merged to `main`; the documented root install, checks,
-  and build pass, and the side panel opens in Chrome. (Sergi)
-- [x] The collaboration plan is agreed: Albert and Joana will work in parallel
-  across both areas; Sergi coordinates shared contracts and integration.
-  (Everyone)
-- [x] The team sends [the fictional message set](gmail-test-messages.md) to a
-  dedicated test inbox. It covers a client concern, manager promise, stated
-  goal/preference, and an unknown sender. (Sergi)
+- [x] Root `bun run typecheck`, `bun run test` (88 Vitest tests across 12 files),
+  and `bun run build` pass on `feat/history-import-cache`.
+- [x] Synthetic Gmail/Chromium coverage exercises automatic expansion, incoming
+  and outgoing messages, registration, cache reuse, review persistence,
+  navigation, invalid imports, and inference failure/retry.
+- [x] A fresh Chromium run with real local Qwen analyzes both messages in a
+  synthetic thread and makes no additional model calls when reopened unchanged.
+- [x] The extension UI, comments, labels, help, and exposed errors use English.
+  Original email content remains unchanged.
 
-## Gmail capture and history
+## Remaining product acceptance — Sergi
 
-- [ ] Gmail capture reads only the currently open fictional message; navigation
-  clears stale context, and malformed or repeated captures are handled safely.
-  (Albert + Joana)
-- [ ] Opening a client message loads all that client's locally captured or
-  explicitly imported history, including manager replies. Coverage and import
-  labels are clear; message IDs, direction, dates, and excerpts are preserved.
-  Missing history or dates stay unknown, and the inbox is not implied to be
-  fully synced. (Albert + Joana)
-- [ ] Exact sender matching selects the right client, and an unknown sender
-  never sees another client's history. (Albert + Joana)
+### Real Chrome and Gmail acceptance
 
-## Local AI and client context
+- [ ] Complete the [signed-in Chrome acceptance](history-import.md#manual-acceptance-in-signed-in-chrome)
+  against the actual fictional Gmail inbox. Verify collapsed and grouped thread
+  messages, manager replies, recipient metadata, and automatic capture.
+- [ ] Verify first-time client registration resumes the open thread and shows
+  evidence-backed Qwen suggestions; confirm unavailable Ollama leaves history
+  intact and retry succeeds.
+- [ ] Verify reopening a thread does not duplicate messages or repeat unchanged
+  model analysis, while a changed message triggers fresh analysis.
+- [ ] Verify tab/thread changes and unknown senders never leave the previous
+  client's context visible. Record Gmail parser failures and their exact UI state.
 
-- [x] Qwen3 1.7B runs locally; bounded suggestions cite messages from the
-  matched client's history and include exact excerpts from those messages.
-  (Albert + Joana; verified through the local adapter with exact evidence, PR #4)
-- [ ] The manager can confirm or dismiss suggestions and resolve concerns or
-  commitments; suggestions remain unconfirmed until reviewed, and choices persist.
-  (Albert + Joana)
-- [ ] Communication signals stay message-specific and uncertain; dates/counts
-  come from recorded data, and missing replies remain unknown. (Albert + Joana)
+### Complete the manager workflow
 
-## Briefing and integration
+- [ ] Present a concise, prioritized brief for current concerns and open
+  commitments, followed by goals/preferences and recent message-specific signals.
+- [ ] Make evidence easy to inspect without overwhelming the brief; show each
+  item's source message, exact excerpt, date when known, and suggestion/review
+  status.
+- [ ] Let the manager confirm or dismiss suggestions and resolve both concerns
+  and commitments. Verify each decision persists after reload and client changes.
+- [ ] Make partial history and missing dates/replies explicit, and avoid implying
+  that absent records prove a communication did not happen.
+- [ ] Review empty, loading, no-match, capture-error, storage-error, and
+  unavailable-model states so each offers a clear next step and no stale data.
 
-- [ ] The panel shows identity and history coverage, then concerns/commitments,
-  goals/preferences, and recent signals. Observations include expandable source
-  excerpts, and suggestions are distinct from confirmed context. (Sergi; with
-  Albert + Joana on the core results)
-- [ ] Switching messages or clients clears stale results and previous context.
-  UI handlers call core use cases; client and evidence rules live in core.
-  (Sergi + Albert + Joana)
-- [ ] A manager can open a fictional message, inspect its history-backed brief,
-  run local analysis, review a suggestion, resolve an item, and switch clients
-  without losing saved state or exposing another profile. (Everyone; Sergi leads
-  integration)
+### Professional finish and handoff
 
-## Demo readiness
+- [ ] Review the complete panel at supported Chrome Side Panel sizes for clear
+  hierarchy, readable evidence, keyboard access, visible focus, and no clipping
+  or horizontal overflow.
+- [ ] Confirm all user-facing copy is clear English while source messages remain
+  untouched. Remove obsolete labels and controls left by superseded workflows.
+- [ ] Document installation, Ollama setup, permissions, data location, JSON
+  history format, cache behavior, limitations, and recovery steps in the project
+  README and user guide.
+- [ ] Verify a clean local setup can install dependencies from the lockfile, build
+  the extension, load it in Chrome, connect to local Ollama, and complete the
+  acceptance flow without repository-specific leftovers.
+- [ ] Run and record `bun run typecheck`, `bun run test`, `bun run build`, and
+  `git diff --check` after the final changes. Resolve failures before calling the
+  deliverable complete.
+- [ ] Review the final changes for client-data leakage, fabricated or
+  unattributed claims, stale-context races, accidental permissions, and
+  undocumented limitations.
 
-- [ ] Typecheck, Vitest, and build pass; each PR records actual results, Sergi
-  reviews integration, and another teammate checks behavior. (Each PR author;
-  Sergi reviews; a teammate checks behavior)
-- [ ] The team rehearses from a fresh Chrome load, including an unknown sender
-  and unavailable Gmail/Ollama. Failures show honest empty/error states without substitute answers.
-  (Everyone)
-- [ ] The team compares time to answer the same three questions from raw
-  messages and the brief; `main` remains runnable, with gaps recorded.
-  (Sergi coordinates; everyone contributes)
+## Deferred scope
 
-## Scope guard
-
-- [ ] Client data stays fictional and local. The demo adds no Gmail OAuth,
-  mailbox-wide sync, cloud backend, database, or automatic email sending; tone
-  never becomes a permanent profile or drives financial decisions. (Everyone;
-  Sergi checks integration scope)
+Reply drafting, preference-change review, mailbox-wide synchronization, Gmail
+OAuth, cloud services, databases, real-client data, automatic sending, and
+automated financial decisions are outside the current product boundary. Revisit
+them only through a separately approved architecture change.

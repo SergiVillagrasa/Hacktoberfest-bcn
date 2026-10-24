@@ -14,4 +14,6 @@ Read architecture.md, AGENTS.md and the shared kickoff plan before implementing.
 
 7. [Thread import and English frontend](07-thread-import-english.md): approved expanded-thread import and English panel copy.
 
+8. [Automatic thread context](08-automatic-thread-context.md): automatically expand/capture the open thread and store/analyze local context.
+
 Albert and Joana work in parallel across Gmail/history and local AI/context. You coordinate shared contract and composition changes, review integration PRs, and keep `main` runnable.

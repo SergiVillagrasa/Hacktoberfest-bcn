@@ -74,7 +74,7 @@ export function extractExpandedThread(root: Document, source: EmailContext['sour
       const recipients = new Set(Array.from(container!.querySelectorAll('.g2[email], .g2[data-hovercard-id]'))
         .map((recipient) => (recipient.getAttribute('email') ?? recipient.getAttribute('data-hovercard-id') ?? '').toLowerCase())
         .filter((address) => address && address !== managerEmail));
-      if (recipients.size !== 1) throw new Error('A manager reply needs exactly one visible recipient. Open its recipient details in Gmail and preview again.');
+      if (recipients.size !== 1) throw new Error('A manager reply needs exactly one visible recipient. Open its recipient details in Gmail and retry capture.');
       recipientEmail = [...recipients][0]!;
     }
     const email: EmailContext = {
@@ -94,25 +94,37 @@ export function extractExpandedThread(root: Document, source: EmailContext['sour
 
 
 export async function captureOpenThread(root: Document, isCurrent: () => boolean): Promise<CapturedThread | null> {
-  if (!root.querySelector('h2.hP')) return null;
+  const subjects = Array.from(root.querySelectorAll('h2.hP')).filter(visible);
+  if (!subjects.length) return null;
+  if (subjects.length !== 1) throw new Error('Multiple Gmail conversations are visible. Open one thread before capture.');
   const clicked = new Set<Element>();
   const deadline = Date.now() + 5000;
+  let settleUntil = 0;
   while (isCurrent()) {
+    const scope = subjects[0]!.closest('[role="main"]') ?? root;
+    const expandAll = Array.from(scope.querySelectorAll<HTMLElement>(
+      '[aria-label="Expand all"], [data-tooltip="Expand all"], [aria-label="Desplega-ho tot"], [data-tooltip="Desplega-ho tot"], [aria-label="Mostrar todo"], [data-tooltip="Mostrar todo"], [aria-label="Expandir todo"], .adx[role="button"]',
+    )).find((control) => visible(control) && !control.closest('.a3s') && control.tagName !== 'A' && !clicked.has(control));
+    if (expandAll) {
+      clicked.add(expandAll);
+      expandAll.click();
+      settleUntil = Date.now() + 500;
+    }
     const containers = Array.from(root.querySelectorAll('[data-message-id], [data-legacy-message-id]'))
-      .filter((container) => visible(container) && container.querySelector('.gD[email], .gD[data-hovercard-id]'));
+      .filter((container) => visible(container) && !container.closest('.a3s'));
     if (containers.length > HISTORY_IMPORT_LIMITS.messages) throw new Error('The current thread exceeds the 50-message capture limit.');
     const collapsed = containers.filter((container) => {
       const body = container.querySelector('.a3s');
       return !body || !visible(body);
     });
-    if (containers.length && !collapsed.length) {
+    if (containers.length && !collapsed.length && Date.now() >= settleUntil) {
       const thread = extractExpandedThread(root, 'gmail');
       return { ...thread, threadId: root.location.href };
     }
     for (const container of collapsed) {
       // Only message headers can be clicked; message contents are never executed.
       const header = container.querySelector<HTMLElement>('.gE, .gH, [role="button"][aria-expanded="false"]');
-      if (header && visible(header) && !clicked.has(header)) {
+      if (header && visible(header) && !header.closest('.a3s') && header.tagName !== 'A' && !clicked.has(header)) {
         clicked.add(header);
         header.click();
       }

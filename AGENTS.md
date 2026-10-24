@@ -12,7 +12,7 @@ This is pre-event preparation: documentation, local skills, and directory struct
 
 - The product is a local client briefing tool for a manager with many clients. Prioritize concerns, open commitments, goals/preferences, and dated communication signals, each with evidence. Reply drafting is optional.
 - Use the TypeScript/Bun workspace structure in architecture.md: apps/extension, packages/contracts, packages/core, packages/infra. Keep domain decisions in core and platform/model integration in adapters.
-- Automatic Gmail capture is limited to the current fictional message. An explicit panel action may preview/import expanded messages from the current fictional thread, including manager replies, with per-message IDs and validated client/recipient ownership. The content script never reads profiles or calls Ollama; imported history must be explicitly labeled.
+- Automatic Gmail capture reads the current fictional thread, expanding its messages and including manager replies, with per-message IDs and validated client/recipient ownership. It never navigates to another thread or searches the mailbox. The content script never reads profiles or calls Ollama; imported history must be explicitly labeled.
 - Client matching and client isolation are application rules. The AI cannot authorize clients, approve facts, resolve concerns, determine prices, or make financial decisions.
 - Preserve source message IDs and exact excerpts. Distinguish suggestions, confirmed context, and unknown information. A matching quotation is not a guarantee that the interpretation is correct.
 - Communication signals concern individual messages/topics. They may be unclear; do not build a permanent emotional profile or a manager-performance score from them.

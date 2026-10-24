@@ -5,16 +5,18 @@ import type {
   EmailContext,
   HistoryCoverage,
   HistoryImport,
+  CapturedThread,
 } from '@briefing/contracts';
 import type {
   AnalysisResult,
+  ThreadContextResult,
   AnalysisCachePort,
   ClientContextUseCases,
   HistoryPort,
   InferencePort,
   ProfilePort,
 } from './index';
-import { isEmailContext, isHistoryImport } from '@briefing/contracts';
+import { isCapturedThread, isEmailContext, isHistoryImport } from '@briefing/contracts';
 import { ANALYSIS_REVISION, analysisSignature, messageContent } from './analysis-cache';
 import { computeCoverage } from './coverage';
 import { createSuggestedItem, validateCandidateEvidence } from './evidence';
@@ -53,6 +55,57 @@ export class ClientContextService implements ClientContextUseCases {
     if (!briefing) return undefined;
     const { emails } = await this.deps.historyPort.list(profile.id);
     return { briefing, emails, cached: result.cached === true };
+  }
+
+  async openThread(thread: CapturedThread): Promise<ThreadContextResult> {
+    if (!isCapturedThread(thread)) throw new Error('Invalid captured thread.');
+    const participants = new Set<string>();
+    const ids = new Set<string>();
+    for (const email of thread.messages) {
+      if (ids.has(email.id)) throw new Error('The captured thread contains duplicate message IDs.');
+      ids.add(email.id);
+      if (email.direction === 'incoming') {
+        if (email.senderEmail === thread.managerEmail || (email.recipientEmail && email.recipientEmail !== thread.managerEmail)) {
+          throw new Error('An incoming message does not match the Gmail account.');
+        }
+        participants.add(email.senderEmail);
+      } else {
+        if (email.senderEmail !== thread.managerEmail || !email.recipientEmail || email.recipientEmail === thread.managerEmail) {
+          throw new Error('A manager reply is missing an unambiguous client recipient.');
+        }
+        participants.add(email.recipientEmail);
+      }
+    }
+    if (participants.size !== 1) throw new Error('This thread has multiple external participants. Client context cannot be selected safely.');
+    const clientEmail = [...participants][0]!;
+    const profile = await this.deps.profilePort.findByEmail(clientEmail);
+    if (!profile) return { status: 'no-client', senderEmail: clientEmail };
+    await this.withClientWrite(profile.id, async () => {
+      const { emails } = await this.deps.historyPort.list(profile.id);
+      const merged = new Map(emails.map((email) => [email.id, email]));
+      for (const email of thread.messages) {
+        const existing = merged.get(email.id);
+        if (existing && (existing.senderEmail !== email.senderEmail || existing.direction !== email.direction
+          || (existing.recipientEmail && email.recipientEmail && existing.recipientEmail !== email.recipientEmail))) {
+          throw new Error('A captured message ID conflicts with its recorded sender or recipient.');
+        }
+        merged.set(email.id, { ...email, ...(existing?.sentAt && !email.sentAt ? { sentAt: existing.sentAt } : {}) });
+      }
+      await this.deps.historyPort.save(profile.id, [...merged.values()]);
+    });
+    let analyzed = 0;
+    let cached = 0;
+    let analysisError: string | undefined;
+    try {
+      const result = await this.analyzeHistory(profile.id);
+      analyzed = result.analyzed;
+      cached = result.cached;
+    } catch (error) {
+      analysisError = error instanceof Error ? error.message : 'Local analysis failed.';
+    }
+    const saved = await this.readClient(clientEmail);
+    if (!saved) throw new Error('Client unavailable.');
+    return { status: 'ready', ...saved, analyzed, cached, ...(analysisError ? { analysisError } : {}) };
   }
 
   async readClient(senderEmail: string): Promise<{ briefing: ClientBriefing; emails: EmailContext[] } | undefined> {
@@ -167,7 +220,7 @@ export class ClientContextService implements ClientContextUseCases {
 
   private ownsEmail(email: EmailContext, profile: ClientProfile): boolean {
     return email.direction === 'incoming' ? email.senderEmail === profile.email
-      : email.source === 'demo-import' && email.recipientEmail === profile.email && email.senderEmail !== profile.email;
+      : email.recipientEmail === profile.email && email.senderEmail !== profile.email;
   }
 
   private async extractAndStore(email: EmailContext, profile: ClientProfile, allowedSources: EmailContext[], signature: string): Promise<AnalysisResult> {

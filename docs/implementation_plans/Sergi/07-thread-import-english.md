@@ -1,5 +1,7 @@
 # Explicit expanded-thread import and English frontend
 
+Superseded for Gmail capture by [automatic thread context](08-automatic-thread-context.md). The English UI and JSON import remain.
+
 ## Scope and authorization
 
 Sergi explicitly approved updating architecture.md to allow a user-triggered import

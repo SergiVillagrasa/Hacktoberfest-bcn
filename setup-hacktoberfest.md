@@ -41,10 +41,10 @@ Focus on **Best Open-Source AI Project**. Qwen3 is an open-weight model, and the
 - **Extension framework/build:** WXT, which uses Vite and handles extension entry points and manifest generation.
 - **Extension UI:** React + TypeScript in the Chrome Side Panel. Use ordinary React components; no Gmail-specific UI component is needed.
 - **Tests:** Vitest with WXT's testing plugin and fake browser APIs. Prioritize client isolation, context updates, evidence validation and incomplete-history states.
-- **Gmail integration:** a content script limited to `https://mail.google.com/*`; automatically read only the currently open fictional message, with an explicit panel action to import expanded messages from that same fictional thread. Do not use Gmail API or OAuth.
+- **Gmail integration:** a content script limited to `https://mail.google.com/*`; automatically expand and read messages in the currently open fictional thread, including manager replies. Do not use Gmail API or OAuth.
 - **Context panel:** Chrome Side Panel API, opened from the extension toolbar button. Keep styling in the extension panel rather than injecting UI into Gmail.
 - **AI:** Ollama local API with `qwen3:1.7b`.
-- **Persistence:** `chrome.storage.local` for fictional message history, extracted context and confirmed profile facts. Import a small labeled sample history at the event; Gmail capture adds only messages actually viewed.
+- **Persistence:** `chrome.storage.local` for fictional message history, extracted context and confirmed profile facts. Import a small labeled sample history at the event; Gmail capture adds messages from threads actually opened, expanding their messages automatically.
 - **Styling:** plain CSS to start; avoid adding a component library during the five-hour sprint.
 - **Repository:** GitHub, with the MIT License (recommended for this small prototype because its conditions are simple: preserve the copyright and license notice).
 
@@ -185,7 +185,7 @@ Keep the visible brief small: identity and coverage, at most three points about 
 
 ## Integration notes
 
-- Automatic capture inspects the currently open message. An explicit panel request may preview expanded messages in that same thread for manual import, with manager recipient validation. Use a `MutationObserver` because Gmail changes threads without reloading the page.
+- Automatic capture expands and reads messages in the currently open thread, with exact client matching and manager-recipient validation in core. Use a `MutationObserver` because Gmail changes threads without reloading the page.
 - Gmail's page structure can change. Keep the demo to prepared threads; parsing failures must not substitute a sample message.
 - The content script does not backfill mailbox history. Use the labeled fictional-history import for the demo, then accumulate context from messages actually captured. Cache each email's analysis so changing messages does not repeatedly analyze the same content.
 - A panel handler invokes the core analysis use case; its inference port is implemented by the local Ollama adapter in packages/infra. The adapter calls `http://127.0.0.1:11434/api/chat` with `stream: false` and a JSON schema in `format`. Keep HTTP, Chrome storage and platform code out of core.

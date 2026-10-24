@@ -27,3 +27,16 @@ reopening, changed messages, failure retries and collapsed-message expansion.
 Run root typecheck, Vitest and build plus an isolated Chromium rehearsal covering
 auto expansion/capture, registration, inference/cache, reload and client switching.
 Document any actual Gmail DOM limits found during manual rehearsal.
+
+## Verification outcome
+
+Root `bun run typecheck`, `bun run test` (88 tests across 12 Vitest files), and
+`bun run build` pass. Fresh isolated Chromium with synthetic Gmail passes automatic
+collapsed-header expansion, Expand all, incoming/outgoing capture, registration,
+deduplicated/cache-backed reopening, saved review state, unknown-client navigation
+and offline/retry. No page errors or horizontal overflow at 320/480px.
+
+A separate fresh Chromium run against real local Qwen also passes automatic
+expansion and both message analyses, including the manager reply. Two model calls
+occur on first capture and zero on reopen. Actual signed-in Gmail DOM remains a
+manual acceptance step; follow docs/sergi/history-import.md after reloading Gmail.
