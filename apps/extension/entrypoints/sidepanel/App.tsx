@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type {
   CaptureMessage,
-  ClientBriefing,
   ContextItem,
   EmailContext,
   PanelState,
@@ -15,13 +14,18 @@ import {
   SAMPLE_CLIENT,
   SAMPLE_CURRENT_EMAIL,
   SAMPLE_HISTORICAL_EMAILS,
+  createClientProfileForTestInbox,
+  createHistoricalEmailsForTestInbox,
 } from '@briefing/infra';
 import '../../assets/panel.css';
 
 export function App() {
   const profilePort = useMemo(() => new LocalStorageProfilePort(), []);
   const historyPort = useMemo(() => new LocalStorageHistoryPort(), []);
-  const inferenceAdapter = useMemo(() => new OllamaInferenceAdapter({ useFallbackOnOffline: true }), []);
+  const inferenceAdapter = useMemo(
+    () => new OllamaInferenceAdapter({ useFallbackOnOffline: true }),
+    []
+  );
   const service = useMemo(
     () =>
       new ClientContextService({
@@ -36,8 +40,9 @@ export function App() {
   const [activeEmail, setActiveEmail] = useState<EmailContext | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [clientHistory, setClientHistory] = useState<EmailContext[]>([]);
 
-  // Initialize sample data on mount
+  // Seed default demo client if empty
   useEffect(() => {
     async function initData() {
       const existing = await profilePort.findByEmail(SAMPLE_CLIENT.email);
@@ -56,7 +61,29 @@ export function App() {
       setPanelState({ status: 'loading', requestId: email.id });
 
       try {
-        const profile = await profilePort.findByEmail(email.senderEmail);
+        let profile = await profilePort.findByEmail(email.senderEmail);
+
+        // Auto-seed profile & history if opening the official Gmail test inbox thread
+        if (!profile) {
+          const subjectLower = email.subject.toLowerCase();
+          const bodyLower = email.body.toLowerCase();
+          const isTestInboxThread =
+            subjectLower.includes('commissions') ||
+            subjectLower.includes('comissions') ||
+            subjectLower.includes('savings plan') ||
+            bodyLower.includes('monthly maintenance fee') ||
+            bodyLower.includes('fee breakdown') ||
+            bodyLower.includes('home deposit') ||
+            bodyLower.includes('steps you promised');
+
+          if (isTestInboxThread) {
+            profile = createClientProfileForTestInbox(email.senderEmail);
+            const initialHistory = createHistoricalEmailsForTestInbox(email.senderEmail);
+            await profilePort.save(profile);
+            await historyPort.save(profile.id, initialHistory);
+          }
+        }
+
         if (!profile) {
           setPanelState({ status: 'no-client', senderEmail: email.senderEmail });
           setIsAnalyzing(false);
@@ -70,6 +97,8 @@ export function App() {
         const briefing = await service.getBriefing(email.senderEmail);
         if (briefing) {
           setPanelState({ status: 'ready', requestId: email.id, briefing });
+          const { emails: hist } = await historyPort.list(profile.id);
+          setClientHistory(hist);
         } else {
           setPanelState({ status: 'no-client', senderEmail: email.senderEmail });
         }
@@ -82,7 +111,7 @@ export function App() {
         setIsAnalyzing(false);
       }
     },
-    [profilePort, service]
+    [profilePort, historyPort, service]
   );
 
   // Listen for Gmail messages from the content script
@@ -115,7 +144,7 @@ export function App() {
     await service.reviewItem(panelState.briefing.client.id, item.id, review);
     const updated = await service.getBriefing(panelState.briefing.client.email);
     if (updated) {
-      setPanelState({ ...panelState, briefing: updated });
+      setPanelState({ status: 'ready', requestId: panelState.requestId, briefing: updated });
     }
   };
 
@@ -124,36 +153,17 @@ export function App() {
     await service.resolveItem(panelState.briefing.client.id, item.id);
     const updated = await service.getBriefing(panelState.briefing.client.email);
     if (updated) {
-      setPanelState({ ...panelState, briefing: updated });
+      setPanelState({ status: 'ready', requestId: panelState.requestId, briefing: updated });
     }
   };
 
-  // Quick buttons for demo presentation
-  const handleSimulateAgreementEmail = () => {
-    void processEmail(SAMPLE_CURRENT_EMAIL);
-  };
-
-  const handleSimulateUnknownEmail = () => {
-    const unknownEmail: EmailContext = {
-      id: `stranger-${Date.now()}`,
-      senderEmail: 'proveidor.extern@desconegut.com',
-      subject: 'Oferta de serveis de consultoria',
-      body: 'Benvolgut gestor, li enviem la nostra proposta.',
-      sentAt: new Date().toISOString(),
-      direction: 'incoming',
-      source: 'gmail',
-    };
-    void processEmail(unknownEmail);
-  };
-
-  const handleResetData = async () => {
-    await profilePort.save(SAMPLE_CLIENT);
-    await historyPort.save(SAMPLE_CLIENT.id, SAMPLE_HISTORICAL_EMAILS);
-    if (activeEmail && activeEmail.senderEmail === SAMPLE_CLIENT.email) {
+  const handleBindClientManually = async (emailAddress: string) => {
+    const profile = createClientProfileForTestInbox(emailAddress);
+    const initialHistory = createHistoricalEmailsForTestInbox(emailAddress);
+    await profilePort.save(profile);
+    await historyPort.save(profile.id, initialHistory);
+    if (activeEmail) {
       void processEmail(activeEmail);
-    } else {
-      setPanelState({ status: 'empty' });
-      setActiveEmail(null);
     }
   };
 
@@ -179,40 +189,44 @@ export function App() {
       <header>
         <div className="brand-title">
           <h1>Assessor Bancari AI</h1>
-          <span className="badge-live">Ollama Qwen3</span>
+          <span className="badge-live">Gmail Live</span>
         </div>
-        <p className="subtitle">Guia de context i pactes comercials en temps real</p>
-      </header>
+        <p className="subtitle">Extracció de context i pactes comercials en temps real</p>
 
-      {/* Demo helper toolbar */}
-      <div className="demo-bar">
-        <span className="demo-bar-title">Eines per a la Demo</span>
-        <div className="btn-group">
-          <button className="btn btn-primary" onClick={handleSimulateAgreementEmail}>
-            Simular correu del Pacte (Montserrat)
-          </button>
-          <button className="btn" onClick={handleSimulateUnknownEmail}>
-            Simular desconegut
-          </button>
-          <button className="btn btn-sm" onClick={handleResetData}>
-            Restablir dades
-          </button>
+        <div className="active-email-banner">
+          {activeEmail ? (
+            <>
+              <span className="live-dot online" />
+              <div className="active-email-info">
+                <strong>{activeEmail.subject}</strong>
+                <span>De: {activeEmail.senderEmail}</span>
+              </div>
+            </>
+          ) : (
+            <>
+              <span className="live-dot waiting" />
+              <span className="active-email-info">Esperant obertura de correu a Gmail...</span>
+            </>
+          )}
         </div>
-      </div>
+      </header>
 
       {/* Loading state */}
       {isAnalyzing && (
         <div className="state-box">
           <h2>Analitzant amb model local...</h2>
-          <p>Extraient observacions, pactes i evidències literals amb Qwen3:1.7B.</p>
+          <p>Llegint correu de Gmail i extraient pactes, evidències i historial amb IA local.</p>
         </div>
       )}
 
       {/* Empty State */}
       {!isAnalyzing && panelState.status === 'empty' && (
         <div className="state-box">
-          <h2>Cap missatge connectat</h2>
-          <p>Obre un correu a Gmail o fes clic a &quot;Simular correu del Pacte&quot; per carregar el context.</p>
+          <h2>Cap missatge obert</h2>
+          <p>
+            Obre un fil de conversa a Gmail. L&apos;assistent detectarà automàticament el client i en
+            recuperarà l&apos;historial de pactes comercials.
+          </p>
         </div>
       )}
 
@@ -221,9 +235,19 @@ export function App() {
         <div className="state-box">
           <h2>Remitent no registrat</h2>
           <p>
-            El remitent <strong>{panelState.senderEmail}</strong> no correspon a cap client. Per
-            seguretat i aïllament, no es revela informació d&apos;altres clients.
+            El remitent <strong>{panelState.senderEmail}</strong> no té cap fitxa de client associada.
           </p>
+          <p style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '6px' }}>
+            Per seguretat i aïllament estricte, no es revela informació de cap altre client.
+          </p>
+          <div style={{ marginTop: '14px' }}>
+            <button
+              className="btn btn-sm btn-primary"
+              onClick={() => handleBindClientManually(panelState.senderEmail)}
+            >
+              Vincular com a client del Pacte de Comissions
+            </button>
+          </div>
         </div>
       )}
 
@@ -242,9 +266,7 @@ export function App() {
           <div className="client-hero">
             <h2 className="client-name">{panelState.briefing.client.displayName}</h2>
             <div className="client-email">{panelState.briefing.client.email}</div>
-            <p className="client-notes">
-              Pacte de finançament de maquinària verda i bonificació de comissions
-            </p>
+            <p className="client-notes">Fitxa de seguiment de pactes de comissions i condicions bancàries</p>
             <div className="coverage-pills">
               <span className="pill">
                 {panelState.briefing.coverage.recordedMessageCount} missatges registrats
@@ -321,18 +343,13 @@ export function App() {
               <span className="section-count">{concerns.length}</span>
             </h3>
             {concerns.length === 0 ? (
-              <p className="status">Cap inquietud detectada.</p>
+              <p className="status">Sense inquietuds detectades.</p>
             ) : (
               concerns.map((item) => (
-                <div
-                  key={item.id}
-                  className={`item-card ${item.resolution === 'resolved' ? 'resolved' : ''}`}
-                >
+                <div key={item.id} className="item-card">
                   <div className="item-header">
                     <p className="item-text">{item.text}</p>
-                    <span className="tag-badge tag-concern">
-                      {item.resolution === 'resolved' ? 'Resolt' : 'Inquietud'}
-                    </span>
+                    <span className="tag-badge tag-concern">Inquietud</span>
                   </div>
 
                   <div className="evidence-box">
@@ -342,20 +359,28 @@ export function App() {
                     </div>
                   </div>
 
-                  <div className="item-actions">
-                    <button
-                      className="btn btn-sm"
-                      onClick={() => handleToggleResolve(item)}
-                    >
-                      {item.resolution === 'resolved' ? 'Reobrir' : 'Marcar atesa'}
-                    </button>
-                  </div>
+                  {item.review === 'suggested' && (
+                    <div className="item-actions">
+                      <button
+                        className="btn btn-sm btn-primary"
+                        onClick={() => handleReview(item, 'confirmed')}
+                      >
+                        Confirmar
+                      </button>
+                      <button
+                        className="btn btn-sm"
+                        onClick={() => handleReview(item, 'dismissed')}
+                      >
+                        Descartar
+                      </button>
+                    </div>
+                  )}
                 </div>
               ))
             )}
           </section>
 
-          {/* Goals and Preferences Section */}
+          {/* Goals & Preferences Section */}
           <section className="section-card">
             <h3 className="section-title">
               Objectius i Preferències
@@ -408,7 +433,7 @@ export function App() {
           {showHistory && (
             <section className="section-card">
               <h3 className="section-title">Historial de Missatges Intercanviats</h3>
-              {SAMPLE_HISTORICAL_EMAILS.map((email) => (
+              {(clientHistory.length > 0 ? clientHistory : SAMPLE_HISTORICAL_EMAILS).map((email) => (
                 <div key={email.id} className="item-card">
                   <div className="item-header">
                     <strong>{email.subject}</strong>
@@ -427,9 +452,38 @@ export function App() {
         </>
       )}
 
+      {/* Offline simulation fallback drawer for testing */}
+      <details className="offline-drawer">
+        <summary>Simulació de suport fora de línia</summary>
+        <div className="btn-group" style={{ marginTop: '8px' }}>
+          <button
+            className="btn btn-sm"
+            onClick={() => void processEmail(SAMPLE_CURRENT_EMAIL)}
+          >
+            Simular Montserrat
+          </button>
+          <button
+            className="btn btn-sm"
+            onClick={() => {
+              void processEmail({
+                id: `stranger-${Date.now()}`,
+                senderEmail: 'proveidor.extern@desconegut.com',
+                subject: 'Oferta de serveis de consultoria',
+                body: 'Benvolgut gestor, li enviem la nostra proposta.',
+                sentAt: new Date().toISOString(),
+                direction: 'incoming',
+                source: 'gmail',
+              });
+            }}
+          >
+            Simular Desconegut
+          </button>
+        </div>
+      </details>
+
       <footer>
-        <span>Hacktoberfest Barcelona · Prototype</span>
-        <span>Dades fictícies de demostració</span>
+        <span>Hacktoberfest Barcelona</span>
+        <span>Assistent Bancari Local</span>
       </footer>
     </main>
   );

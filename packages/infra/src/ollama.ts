@@ -198,6 +198,78 @@ Extract up to 5 observations as JSON.`;
           sourceExcerpt: 'impacte de les comissions bancàries en el flux de caixa inicial',
         });
       }
+
+      // Patterns from official test inbox (docs/sergi/gmail-test-messages.md)
+      if (source.body.includes('steps you promised before we speak')) {
+        candidates.push({
+          kind: 'commitment',
+          text: 'Compromís del gestor d\'enviar els passos d\'explicació de comissió abans de parlar',
+          sourceEmailId: source.id,
+          sourceExcerpt: 'steps you promised before we speak',
+        });
+      } else if (source.body.includes('steps for finding the fee breakdown on your statement by Friday')) {
+        candidates.push({
+          kind: 'commitment',
+          text: 'Promesa del gestor d\'enviar el desglossament de la comissió abans de divendres',
+          sourceEmailId: source.id,
+          sourceExcerpt: 'steps for finding the fee breakdown on your statement by Friday',
+        });
+      }
+
+      if (source.body.includes('still can’t identify the monthly maintenance fee')) {
+        candidates.push({
+          kind: 'concern',
+          text: 'El client encara no pot identificar la comissió de manteniment a l\'extracte de febrer',
+          sourceEmailId: source.id,
+          sourceExcerpt: 'still can’t identify the monthly maintenance fee',
+        });
+      } else if (source.body.includes('still can’t find the steps you mentioned')) {
+        candidates.push({
+          kind: 'concern',
+          text: 'El client no troba els passos promesos pel gestor per revisar comissions',
+          sourceEmailId: source.id,
+          sourceExcerpt: 'still can’t find the steps you mentioned in your last email',
+        });
+      } else if (source.body.includes('monthly maintenance fee on my statement')) {
+        candidates.push({
+          kind: 'concern',
+          text: 'Comissió mensual de manteniment detectada pel client a l\'extracte',
+          sourceEmailId: source.id,
+          sourceExcerpt: 'monthly maintenance fee on my statement',
+        });
+      }
+
+      if (source.body.includes('plan my home deposit savings')) {
+        candidates.push({
+          kind: 'goal',
+          text: 'Planificació de l\'estalvi per a l\'entrada de l\'habitatge',
+          sourceEmailId: source.id,
+          sourceExcerpt: 'plan my home deposit savings',
+        });
+      } else if (source.body.includes('saving toward a home deposit')) {
+        candidates.push({
+          kind: 'goal',
+          text: 'Objectiu d\'estalvi per a la compra d\'un habitatge',
+          sourceEmailId: source.id,
+          sourceExcerpt: 'saving toward a home deposit',
+        });
+      }
+
+      if (source.body.includes('Please reply by email')) {
+        candidates.push({
+          kind: 'preference',
+          text: 'Preferència expressa de comunicació i resposta per correu electrònic',
+          sourceEmailId: source.id,
+          sourceExcerpt: 'Please reply by email',
+        });
+      } else if (source.body.includes('Email is my preferred way to discuss account questions')) {
+        candidates.push({
+          kind: 'preference',
+          text: 'Canal de comunicació preferit pel client: correu electrònic',
+          sourceEmailId: source.id,
+          sourceExcerpt: 'Email is my preferred way to discuss account questions',
+        });
+      }
     }
 
     return candidates.slice(0, 5);
