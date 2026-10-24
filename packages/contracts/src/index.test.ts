@@ -48,3 +48,17 @@ describe('capture envelope', () => {
     expect(isCaptureMessage({ type: 'analysis/run', requestId: 'r1', email })).toBe(false);
   });
 });
+
+
+it('accepts bounded capture diagnostics and rejects arbitrary page-provided reasons', () => {
+  expect(isCaptureMessage({ type: 'email/cleared', requestId: 'reason-1', reason: 'outgoing-message' })).toBe(true);
+  expect(isCaptureMessage({ type: 'email/cleared', requestId: 'reason-2', reason: 'run-model' })).toBe(false);
+});
+
+
+it('validates automatic whole-thread capture without accepting imported sources', () => {
+  const thread = { version: 1, threadId: 'gmail-thread', managerEmail: 'manager@example.test', messages: [email] };
+  expect(isCaptureMessage({ type: 'thread/captured', requestId: 'r1', thread })).toBe(true);
+  expect(isCaptureMessage({ type: 'thread/captured', requestId: 'r1', thread: { ...thread, messages: [{ ...email, source: 'demo-import' }] } })).toBe(false);
+  expect(isCaptureMessage({ type: 'capture/error', requestId: 'r1', reason: 'Unreadable thread' })).toBe(true);
+});

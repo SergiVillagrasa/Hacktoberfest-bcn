@@ -1,5 +1,10 @@
 # Joana: shared feature work and handoff
 
+**24 October update:** Scripted answers and bundled sample fallbacks are removed.
+Earlier fallback references below describe the original plan. Use explicit imports,
+empty client registration and honest empty/error states; see the
+[current checklist](../../sergi/implementation-checklist.md).
+
 Assignment: work with Albert across both Gmail/history and local AI/client-context
 in parallel. Coordinate concrete tasks with Albert and shared contracts or
 composition changes with Sergi; no area is reserved for one teammate.

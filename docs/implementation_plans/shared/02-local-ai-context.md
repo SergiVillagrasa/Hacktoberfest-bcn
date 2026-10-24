@@ -1,5 +1,10 @@
 # Local AI and client-context services
 
+**24 October update:** Scripted answers and bundled sample fallbacks are removed.
+Earlier fallback references below describe the original plan. Use explicit imports,
+empty client registration and honest empty/error states; see the
+[current checklist](../../sergi/implementation-checklist.md).
+
 Owners: Albert and Joana jointly. Suggested branch: feat/local-ai-profile.
 
 ## Outcome and affected areas

@@ -9,12 +9,15 @@ Local client briefing assistant for bank relationship managers. A Chrome side pa
 3. Read the [team setup](setup-hacktoberfest.md) and [research findings](research-bank-manager-sidebar.md).
 4. Use the [implementation plan index](docs/implementation_plans/README.md) to find your member plan and feature lane.
 
-## Foundation status
+## Implementation status
 
-The first application foundation provides Bun workspaces, shared contracts, core
-ports, Vitest and a WXT/React side panel. The toolbar opens an honest empty state.
-Gmail capture, history import, storage, Ollama and the briefing/review services are
-pending. No demo inbox or static analysis fallback is included.
+The workspace includes Gmail current-message capture, Chrome local storage,
+local Ollama extraction, evidence checks, and a briefing panel with review actions.
+Unknown senders require explicit registration, which creates an empty client
+record. No profiles, history or answers are seeded from message keywords.
+Ollama failures show an unavailable state; no scripted answers are substituted.
+See the [acceptance checklist](docs/sergi/implementation-checklist.md) for remaining
+integration and demo checks. Opening a Gmail thread automatically captures its incoming messages and manager replies, expands collapsed message headers, and stores/analyzes context for the registered client. JSON history import and persistent analysis caching are available in the English-language panel. See the [import and rehearsal guide](docs/sergi/history-import.md).
 
 ```text
 architecture.md                    Protected architecture
@@ -24,7 +27,7 @@ research-bank-manager-sidebar.md   Findings, sources and sidebar priorities
 apps/extension/                    WXT/React extension and composition ownership
 packages/contracts/                Shared value types and capture validation
 packages/core/                     Exact client matching, ports and service interfaces
-packages/infra/                    Adapter export placeholder
+packages/infra/                    Chrome storage and local Ollama adapters
 docs/implementation_plans/         Concise plans and member folders
 docs/design_plans/                 Reserved for explicitly requested designs
 skills/                            Five local assistant skills
@@ -56,8 +59,16 @@ bun run build
 
 In `chrome://extensions`, enable Developer mode, choose **Load unpacked**, and
 select `apps/extension/.output/chrome-mv3`. Pin **Client briefing** and click its
-toolbar icon. The panel should show **No message connected** and explain that
-capture and analysis are pending. This path does not require Gmail or Ollama.
+toolbar icon. The panel initially waits for a Gmail message. Open a fictional incoming message
+and explicitly register its sender if unknown. Registration creates no facts or
+history. Start local Ollama with `qwen3:1.7b` and configure the extension origin as
+explained in [setup](setup-hacktoberfest.md); the model generates suggestions that
+the manager can confirm or dismiss. Unavailable Ollama produces an error.
+
+On first access after updating, storage removes observations without explicit
+`ollama-live` provenance (including previously reviewed scripted facts) and known
+bundled sample messages. Captured messages and live model results are retained, except results citing the removed bundled sample messages.
+Test fixtures remain in test-only files and are not loaded by the extension.
 
 `bun run dev` starts WXT with hot reload and its browser runner. For the simplest
 manual Chrome check, use the production-build loading steps above. Never use
@@ -80,17 +91,16 @@ Workspace exports are `@briefing/contracts`, `@briefing/core` and
 `@briefing/infra`. Contracts provides email/source, evidence, review, coverage,
 panel-state and capture-envelope types plus `isEmailContext`/`isCaptureMessage`.
 Core exports exact `matchClient`, `HistoryPort`, `ProfilePort`, `InferencePort`
-and `ClientContextUseCases` integration signatures; the service implementations
-are pending. Infra exports no adapters yet.
+and `ClientContextUseCases`, plus the implemented `ClientContextService`.
+Infra exports Chrome local-storage ports and the local Ollama inference adapter.
 
 Sergi coordinates contract edits and owns extension composition under
 [`apps/extension/lib/`](apps/extension/lib/README.md). That handoff describes
 message names, request identity, navigation clearing and handler boundaries.
 Shape validation does not replace sender-origin or client/evidence validation.
-Keep the permissions minimal: the shell requests only `sidePanel`; feature PRs
-add Gmail, Chrome storage or loopback access when implemented.
+Keep permissions limited to the side panel, storage, Gmail capture and loopback inference.
 
-Keep the primary demonstration on Sergi's computer: labeled imported fictional history plus live extraction from the current Gmail message. Display missing history honestly and retain a clearly labeled fallback. Reserve the final integration/rehearsal period; implement the approved preference-change stretch feature only after the briefing flow works.
+Keep the primary demonstration on Sergi's computer: labeled imported fictional history plus live extraction from the current Gmail message. Display missing history honestly. If Gmail or Ollama is unavailable, show an empty/error state; scripted answer fallbacks have been removed. Reserve the final integration/rehearsal period; implement the approved preference-change stretch feature only after the briefing flow works.
 
 ## Assistant skills and plugins
 

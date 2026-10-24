@@ -8,7 +8,7 @@ Make the primary demo repeatable on Sergi's computer and ready for the team's pu
 
 ## Approach and dependencies
 
-Use the event-created fictional history with a repeated fee concern, a recorded manager commitment, a goal/preference, and a new Gmail message. Show source coverage and live local extraction. Rehearse unknown-client and unavailable-service states, keeping sample fallbacks visibly labeled.
+Use the event-created fictional history with a repeated fee concern, a recorded manager commitment, a goal/preference, and a new Gmail message. Show source coverage and live local extraction. Rehearse unknown-client and unavailable-service states, showing honest empty/error states without scripted answers.
 
 Ask the same three questions of raw history and the brief: current concern, prior promise, relevant goal/preference. Record the time and whether answers are supported. Report this as a small prototype exercise, not proof of financial decision quality. Capture actual run/build instructions, limitations, license/dependency notes and demo steps in the README. Submission requirements should be checked against the actual event before submitting; do not assume a public hosted app is required.
 
@@ -16,4 +16,4 @@ If the main path and integration checks are stable, add the accepted preference-
 
 ## Verification and completion
 
-Run checks relevant to the final changes and a fresh-load Chrome rehearsal with local Ollama. Confirm cross-client isolation, persisted review states, evidence, and fallback labels. Have another teammate follow the written startup steps. Review PR readiness with the local skills and merge with merge commits; keep main demoable.
+Run checks relevant to the final changes and a fresh-load Chrome rehearsal with local Ollama. Confirm cross-client isolation, persisted review states, evidence, and unavailable-service states. Have another teammate follow the written startup steps. Review PR readiness with the local skills and merge with merge commits; keep main demoable.

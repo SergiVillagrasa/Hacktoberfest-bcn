@@ -12,7 +12,7 @@ Consume core result/view contracts rather than reimplement matching, ranking, ev
 
 Lead with at most three current-context points, label suggestions and incomplete history, and provide source excerpts for every observation. Make confirmation/dismissal and manual resolution available. Clear the previous client context during navigation so a late result cannot appear for another sender. Coordinate request identity/cancellation with the service owner.
 
-Use a labeled development fixture while the lanes are pending, then exercise the actual services before merging the integrated feature. Add shared UI only when another feature needs it. For frontend work, suggest/use Impeccable when available; it is not a required dependency. Reply drafting is secondary.
+Use actual captured or explicitly imported messages; do not seed prewritten observations. Exercise the actual services before merging the integrated feature. Add shared UI only when another feature needs it. For frontend work, suggest/use Impeccable when available; it is not a required dependency. Reply drafting is secondary.
 
 ## Verification and useful PR boundary
 
