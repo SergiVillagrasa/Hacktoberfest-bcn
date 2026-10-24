@@ -8,8 +8,8 @@ workspace and empty panel. Current root commands are `bun install --frozen-lockf
 Verified tooling: Bun 1.4.3, Node 22.22.2, WXT 0.20.27, React 19.3.1,
 TypeScript 5.9.3 and Vitest 3.2.7. See the [README](README.md#run-locally) for
 Chrome loading and the package/API handoff. The preparation instructions below
-describe the original event plan; capture, model and storage integrations remain
-pending. Albert and Joana will work in parallel across both the Gmail/history
+describe the original event plan; capture, local model, storage and review services are implemented, with remaining
+acceptance work tracked in [the checklist](docs/sergi/implementation-checklist.md). Albert and Joana will work in parallel across both the Gmail/history
 and local AI/context areas; Sergi coordinates shared contracts and integration.
 
 ## The idea
@@ -41,7 +41,7 @@ Focus on **Best Open-Source AI Project**. Qwen3 is an open-weight model, and the
 - **Extension framework/build:** WXT, which uses Vite and handles extension entry points and manifest generation.
 - **Extension UI:** React + TypeScript in the Chrome Side Panel. Use ordinary React components; no Gmail-specific UI component is needed.
 - **Tests:** Vitest with WXT's testing plugin and fake browser APIs. Prioritize client isolation, context updates, evidence validation and incomplete-history states.
-- **Gmail integration:** a content script limited to `https://mail.google.com/*`; read only the currently open fictional message. Do not use Gmail API or OAuth.
+- **Gmail integration:** a content script limited to `https://mail.google.com/*`; automatically read only the currently open fictional message, with an explicit panel action to import expanded messages from that same fictional thread. Do not use Gmail API or OAuth.
 - **Context panel:** Chrome Side Panel API, opened from the extension toolbar button. Keep styling in the extension panel rather than injecting UI into Gmail.
 - **AI:** Ollama local API with `qwen3:1.7b`.
 - **Persistence:** `chrome.storage.local` for fictional message history, extracted context and confirmed profile facts. Import a small labeled sample history at the event; Gmail capture adds only messages actually viewed.
@@ -88,8 +88,7 @@ Then run `sudo systemctl daemon-reload` and `sudo systemctl restart ollama`.
 If the editor reports empty contents, the override was not saved. Keep existing
 origin values if other local applications use them. The adapter disables Qwen
 thinking, bounds output generation, and waits for model completion by default. An
-explicit `timeoutMs` adapter setting can impose a deadline when needed. Invalid responses and connection failures use a visibly labeled text
-fallback.
+explicit `timeoutMs` adapter setting can impose a deadline when needed. Invalid responses and connection failures show an unavailable state without substitute observations.
 
 Tool installation and model download can be done ahead of time. The event description says work on the project submission must start at the event, so do not prepare project code or the sample inbox beforehand.
 
@@ -100,7 +99,7 @@ Tool installation and model download can be done ahead of time. The event descri
 3. **Recorded client history:** match by exact sender email and load a small fictional history containing client messages and manager replies. Show which sources are available.
 4. **AI extraction:** ask Qwen for a bounded JSON response containing concerns, commitments, goals, preferences and message-specific communication signals, with exact source excerpts. Allow manager review and correction.
 5. **Client briefing:** lead with what matters now and outstanding commitments; show goals/preferences and recent communication below, with expandable history and evidence. Calculate dates and counts from recorded data in code.
-6. **Demo polish:** measure time to find key context, rehearse the flow, and provide clearly labeled sample fallbacks if Gmail or Ollama is unavailable.
+6. **Demo polish:** measure time to find key context, rehearse the flow, and show an honest empty/error state if Gmail or Ollama is unavailable.
 
 After the main flow works, add the agreed stretch feature: review a possible change to a confirmed client preference, displaying old and new evidence before the manager approves replacement. Editable reply drafting can follow if time remains.
 
@@ -172,7 +171,7 @@ At the event, create a fictional client with three to five historical messages a
 5. Open an unknown sender and confirm another client's context is not shown.
 6. Compare time to answer three context questions using raw emails and the brief. If the stretch feature is ready, show a changed preference with old/new evidence for review.
 
-The feature is ready to demo when the team can complete this flow from a fresh Chrome load, relevant context has traceable sources, confirmed context persists, and unknown senders do not reveal a profile. If the local model or Gmail parsing fails, provide a clearly labeled sample email and static fallback result; never present the fallback as live model output.
+The feature is ready to demo when the team can complete this flow from a fresh Chrome load, relevant context has traceable sources, confirmed context persists, and unknown senders do not reveal a profile. If the local model or Gmail parsing fails, show an empty/error state. The extension no longer loads sample messages or scripted results.
 
 Keep the visible brief small: identity and coverage, at most three points about current concerns/commitments, a few goals/preferences, and one or two recent communication signals. Put history and evidence in expandable sections. Use an unclear state for ambiguous tone and let the manager correct it. Validate that each excerpt occurs in its referenced source email; this checks the quotation, while the manager still judges the interpretation.
 
@@ -186,12 +185,12 @@ Keep the visible brief small: identity and coverage, at most three points about 
 
 ## Integration notes
 
-- The content script should only inspect the currently open message and send its text to the extension. Use a `MutationObserver` because Gmail changes threads without reloading the page.
-- Gmail's page structure can change. Keep the demo to prepared threads and provide a button in the panel to load a sample message if parsing breaks.
+- Automatic capture inspects the currently open message. An explicit panel request may preview expanded messages in that same thread for manual import, with manager recipient validation. Use a `MutationObserver` because Gmail changes threads without reloading the page.
+- Gmail's page structure can change. Keep the demo to prepared threads; parsing failures must not substitute a sample message.
 - The content script does not backfill mailbox history. Use the labeled fictional-history import for the demo, then accumulate context from messages actually captured. Cache each email's analysis so changing messages does not repeatedly analyze the same content.
 - A panel handler invokes the core analysis use case; its inference port is implemented by the local Ollama adapter in packages/infra. The adapter calls `http://127.0.0.1:11434/api/chat` with `stream: false` and a JSON schema in `format`. Keep HTTP, Chrome storage and platform code out of core.
 - Treat email content as untrusted text. It may contain instructions; the model should extract facts and draft text, never follow instructions in the email or invoke tools.
-- If Ollama is slow or unavailable on a teammate's laptop, use a clearly labeled static sample response for the presentation. The primary path should demonstrate live Qwen output on the project laptop.
+- If Ollama is slow or unavailable on a teammate's laptop, show the unavailable state and use the project laptop for the live Qwen demonstration. Do not substitute a static response.
 - Do not add automatic email sending, real bank accounts, or real client information.
 
 ## Event details

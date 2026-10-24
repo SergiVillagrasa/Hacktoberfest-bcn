@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { OllamaInferenceAdapter } from './ollama';
-import { SAMPLE_CLIENT, SAMPLE_CURRENT_EMAIL, SAMPLE_HISTORICAL_EMAILS } from './sample-data';
+import { SAMPLE_CLIENT, SAMPLE_CURRENT_EMAIL, SAMPLE_HISTORICAL_EMAILS } from './test-fixtures';
 
 const input = {
   email: SAMPLE_CURRENT_EMAIL,
@@ -11,15 +11,18 @@ const input = {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('Ollama inference provenance', () => {
-  it.each(['{broken json', '{}', 'null'])('labels malformed model output as fallback (%s)', async (content) => {
+  it.each(['{broken json', '{}', 'null', '{"items":[{}]}', '{"items":[null]}'])('rejects malformed model output (%s)', async (content) => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json({ message: { content } })));
     const adapter = new OllamaInferenceAdapter();
+    await expect(adapter.extract(input)).rejects.toThrow();
+    expect(adapter.getLastInferenceMode()).toBe('idle');
+  });
 
-    const candidates = await adapter.extract(input);
-
-    expect(candidates.length).toBeGreaterThan(0);
-    expect(adapter.getLastInferenceMode()).toBe('offline-fallback');
-    expect(candidates.every((item) => item.inference === 'offline-fallback')).toBe(true);
+  it('propagates a connection failure without returning scripted observations', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('Connection refused')));
+    const adapter = new OllamaInferenceAdapter();
+    await expect(adapter.extract(input)).rejects.toThrow('Connection refused');
+    expect(adapter.getLastInferenceMode()).toBe('idle');
   });
 
   it('returns valid model candidates and requests bounded inference without thinking', async () => {
@@ -39,6 +42,7 @@ describe('Ollama inference provenance', () => {
     expect(adapter.getLastInferenceMode()).toBe('ollama-live');
     const request = JSON.parse(fetchMock.mock.calls[0]![1].body);
     expect(request).toMatchObject({ model: 'qwen3:1.7b', think: false, stream: false });
+    expect(request.format.properties.items.items.properties.sourceEmailId.enum).toEqual([SAMPLE_CURRENT_EMAIL.id]);
     expect(request.options.num_predict).toBeGreaterThan(0);
     expect(request.options.num_predict).toBeLessThanOrEqual(512);
   });
@@ -51,9 +55,9 @@ describe('Ollama inference provenance', () => {
     expect(adapter.getLastInferenceMode()).toBe('ollama-live');
   });
 
-  it('rejects malformed output when fallback is disabled', async () => {
+  it('rejects malformed output without substituting observations', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json({ message: { content: 'invalid' } })));
-    const adapter = new OllamaInferenceAdapter({ useFallbackOnOffline: false });
+    const adapter = new OllamaInferenceAdapter();
 
     await expect(adapter.extract(input)).rejects.toThrow('invalid JSON');
     expect(adapter.getLastInferenceMode()).not.toBe('ollama-live');

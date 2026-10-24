@@ -3,7 +3,7 @@ import type {
   EmailContext,
   HistoryCoverage,
 } from '@briefing/contracts';
-import type { HistoryPort, ProfilePort } from '@briefing/core';
+import type { AnalysisCachePort, HistoryPort, ProfilePort } from '@briefing/core';
 import { computeCoverage } from '@briefing/core';
 
 interface StorageBackend {
@@ -38,20 +38,33 @@ interface ChromeStorageLocalLike {
 }
 
 class ChromeStorageBackend implements StorageBackend {
+  private lastError(): string | undefined {
+    const chromeApi = (globalThis as typeof globalThis & {
+      chrome?: { runtime?: { lastError?: { message?: string } } };
+    }).chrome;
+    return chromeApi?.runtime?.lastError?.message;
+  }
+
   private get localStore(): ChromeStorageLocalLike {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return (globalThis as any).chrome.storage.local as ChromeStorageLocalLike;
   }
 
   async get(keys: string[]): Promise<Record<string, unknown>> {
-    return new Promise((resolve) => {
-      this.localStore.get(keys, (res: Record<string, unknown>) => resolve(res || {}));
+    return new Promise((resolve, reject) => {
+      this.localStore.get(keys, (res: Record<string, unknown>) => {
+        const error = this.lastError();
+        if (error) reject(new Error(error)); else resolve(res || {});
+      });
     });
   }
 
   async set(items: Record<string, unknown>): Promise<void> {
-    return new Promise((resolve) => {
-      this.localStore.set(items, () => resolve());
+    return new Promise((resolve, reject) => {
+      this.localStore.set(items, () => {
+        const error = this.lastError();
+        if (error) reject(new Error(error)); else resolve();
+      });
     });
   }
 }
@@ -68,15 +81,31 @@ export class LocalStorageProfilePort implements ProfilePort {
   constructor(private backend: StorageBackend = resolveStorageBackend()) {}
 
   async findByEmail(senderEmail: string): Promise<ClientProfile | undefined> {
-    const key = `profile:email:${senderEmail.toLowerCase()}`;
-    const data = await this.backend.get([key]);
-    return (data[key] as ClientProfile) || undefined;
+    return this.readProfile(`profile:email:${senderEmail.toLowerCase()}`);
   }
 
   async findById(clientId: string): Promise<ClientProfile | undefined> {
-    const key = `profile:id:${clientId}`;
+    return this.readProfile(`profile:id:${clientId}`);
+  }
+
+  private async readProfile(key: string): Promise<ClientProfile | undefined> {
     const data = await this.backend.get([key]);
-    return (data[key] as ClientProfile) || undefined;
+    const profile = (data[key] as ClientProfile) || undefined;
+    if (!profile) return undefined;
+    const migrationKey = `migration:live-only:profile:${profile.id}`;
+    const migration = await this.backend.get([migrationKey]);
+    if (migration[migrationKey] === true) return profile;
+    // One-time cleanup of the old bundled answers. Future explicit imports may
+    // legitimately reuse their IDs, so never treat an ID as permanently forbidden.
+    const items = profile.items.filter((item) => item.inference === 'ollama-live'
+      && !/^(m-rovira-0[1-4]|sergi-msg-0[1-3])$/.test(item.sourceEmailId));
+    const cleaned = { ...profile, items, notes: '' };
+    await this.backend.set({
+      [`profile:email:${profile.email.toLowerCase()}`]: cleaned,
+      [`profile:id:${profile.id}`]: cleaned,
+      [migrationKey]: true,
+    });
+    return cleaned;
   }
 
   async save(profile: ClientProfile): Promise<void> {
@@ -94,8 +123,15 @@ export class LocalStorageHistoryPort implements HistoryPort {
 
   async list(clientId: string): Promise<{ emails: EmailContext[]; coverage: HistoryCoverage }> {
     const key = `history:${clientId}`;
-    const data = await this.backend.get([key]);
-    const emails = (data[key] as EmailContext[]) || [];
+    const migrationKey = `migration:live-only:history:${clientId}`;
+    const data = await this.backend.get([key, migrationKey]);
+    const stored = (data[key] as EmailContext[]) || [];
+    const emails = data[migrationKey] === true ? stored : stored.filter((email) =>
+      !/^m-rovira-0[1-4]$/.test(email.id) &&
+      !(email.source === 'demo-import' && /^sergi-msg-0[1-3]$/.test(email.id)));
+    if (data[migrationKey] !== true) {
+      await this.backend.set({ [key]: emails, [migrationKey]: true });
+    }
     return {
       emails,
       coverage: computeCoverage(emails),
@@ -107,5 +143,23 @@ export class LocalStorageHistoryPort implements HistoryPort {
     await this.backend.set({
       [key]: [...emails],
     });
+  }
+}
+
+export class LocalStorageAnalysisCachePort implements AnalysisCachePort {
+  constructor(private backend: StorageBackend = resolveStorageBackend()) {}
+
+  private key(clientId: string, emailId: string): string {
+    return `analysis:v2:${JSON.stringify([clientId, emailId])}`;
+  }
+
+  async get(clientId: string, emailId: string): Promise<string | undefined> {
+    const key = this.key(clientId, emailId);
+    const data = await this.backend.get([key]);
+    return typeof data[key] === 'string' ? data[key] : undefined;
+  }
+
+  async save(clientId: string, emailId: string, signature: string): Promise<void> {
+    await this.backend.set({ [this.key(clientId, emailId)]: signature });
   }
 }

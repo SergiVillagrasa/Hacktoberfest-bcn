@@ -10,7 +10,7 @@ Build a TypeScript monorepo for a local client briefing assistant for bank relat
 - Package manager: bun workspaces
 - Frontend: React in a Chrome Side Panel, built with WXT and Vite; plain CSS
 - Host: Chrome Manifest V3 extension; toolbar action, Gmail content script, and side panel
-- Data source: currently open fictional Gmail message and an explicitly imported fictional message history; no Gmail API or OAuth
+- Data source: automatically captured messages from the currently open fictional Gmail thread (including manager replies), plus explicitly imported fictional JSON history; no Gmail API or OAuth
 - Validation: bounded TypeScript contracts and runtime validation of model responses and source evidence
 - AI orchestration: local `analyzeEmail(email, profile)` use case
 - AI model: Ollama running `qwen3:1.7b` on the same computer as Chrome
@@ -89,7 +89,7 @@ Extension entry point:
 
 - WXT-generated Chrome Manifest V3 extension
 - Toolbar action and Chrome Side Panel registration
-- Gmail content script limited to the currently open message
+- Gmail content script automatically expands and captures messages only within the currently open fictional thread, preserving message IDs and incoming/outgoing direction
 - Extension messaging between Gmail capture and the side panel
 - Input validation at message and AI-response boundaries
 - Composition of core use cases with infra adapters
@@ -144,7 +144,7 @@ Rules:
 ## Data And Security Rules
 
 - Use `chrome.storage.local` for fictional client history, extracted context, and reviewed facts; no database or cloud backend.
-- Capture only the currently open fictional Gmail message; imported history must be explicitly labeled and never presented as automatically collected.
+- Automatically capture the currently open fictional Gmail thread, expanding its collapsed messages and including manager replies. Preserve per-message IDs and exact text, validate client/recipient ownership in core, and label these as Gmail captures. JSON history remains explicitly imported; never imply mailbox-wide collection.
 - Match clients by exact sender email and show a no-match state instead of leaking another client's history.
 - Keep suggested facts separate from confirmed profile facts until the manager explicitly reviews them.
 - Validate that every model-cited email belongs to the matched client and each source excerpt occurs verbatim in that email.
@@ -154,7 +154,7 @@ Rules:
 ## Auth Rules
 
 - No account registration, Gmail OAuth, or authenticated bank integration.
-- The extension reads the currently visible fictional message in the user's Chrome session only.
+- The extension automatically reads messages in the currently open fictional Gmail thread and may expand its collapsed messages. It must not navigate to other threads, search the mailbox or interpret email instructions as user actions.
 - Exact sender-email matching selects a local fictional client profile; unknown senders receive no client context.
 - The manager must explicitly confirm or dismiss suggested facts and manually resolve concerns or commitments.
 - The extension must not infer client authorization from AI output or expose one client's profile for another sender.

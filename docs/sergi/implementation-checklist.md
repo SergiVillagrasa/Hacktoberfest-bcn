@@ -6,6 +6,72 @@ relevant PR or demo notes; this page tracks completion, not implementation detai
 Owner labels show who should lead or share each item. Albert and Joana work
 jointly across both feature areas; they agree on the concrete split as they go.
 
+## Audit — 24 October 2026
+
+Source review and automated checks on `fix/remove-scripted-answers` establish the
+items below. Existing checked event/demo items retain their earlier team evidence;
+this audit did not repeat them in Chrome.
+
+- [x] Remove keyword-driven extraction and automatic demo profile/history seeding.
+  Unknown senders require explicit registration of an empty client record.
+- [x] Remove simulation controls and substitute sample history from the panel.
+- [x] Ollama connection/malformed-response failures reject instead of generating
+  scripted answers; valid empty model output remains valid. (`ollama.test.ts`)
+- [x] Remove persisted fallback/unattributed observations and known bundled demo
+  messages when accessed; keep reviewed live-model results and captured messages.
+  (`packages/infra/src/index.test.ts`)
+- [x] Root `bun run typecheck`, `bun run test` and `bun run build` pass on this
+  branch (45 Vitest tests). Browser acceptance is still pending.
+
+### History import and cache implementation
+
+- [x] Explicit bounded JSON import UI, including manager replies with client
+  recipients; ownership and source-ID conflicts validated in core. Imports merge
+  captured history and never seed model answers or confirmed facts.
+- [x] Recorded history labels manual imports/Gmail captures, message direction,
+  unknown dates and partial coverage; no mailbox synchronization is implied.
+- [x] Separate history-analysis action uses live Qwen, with persistent per-client/
+  message/source/revision caching and preserved review/resolution states.
+- [x] Automated regression coverage includes invalid/cross-client imports,
+  manager replies, persisted cache reuse, changed history, retries, empty results,
+  unsupported evidence and overlapping inference. Root checks: 82 Vitest tests,
+  typecheck and build pass on `feat/history-import-cache`.
+- [x] Fresh-profile Chromium smoke check passes using synthetic Gmail DOM and
+  mocked HTTP inference: import, review/cache persistence, navigation, invalid
+  import rejection, failure/retry and no horizontal overflow at 320/480px.
+- [x] Fresh-profile Chromium with real local `qwen3:1.7b` produces an imported
+  manager commitment with exact evidence and suggested review state. Repeating
+  analysis uses cached results (three model requests total, zero on repeat).
+  Gmail markup was synthetic; the model and local extension request were real.
+- [x] Capture diagnostics distinguish outgoing manager replies, missing account
+  identity, unreadable markup and disconnected content scripts; retry is exposed.
+  Parser/message tests and synthetic Chromium navigation cover the outgoing case.
+- [x] Approved explicit expanded-thread preview/import supports incoming client
+  messages and manager replies. Core validates participants/recipients; preview
+  revalidation rejects changed threads. Collapsed messages are excluded.
+- [x] Frontend labels, help, comments and exposed errors use English; original
+  email bodies/excerpts are preserved. Synthetic Chromium checks cover the new
+  English thread-import flow and existing JSON/review/cache behavior.
+- [x] Fresh Chromium expanded-thread import also passes with real local Qwen:
+  two expanded messages, one manager reply, exact suggested evidence, two model
+  requests total and no additional request on repeated analysis. Gmail DOM remains
+  synthetic; source/recipient rejection and cache behavior are exercised.
+- [ ] Actual signed-in Gmail + toolbar side-panel rehearsal by Sergi; follow the
+  [manual guide](history-import.md). Automated fixture checks do not close this item.
+
+### Remaining work, in priority order
+
+1. Complete the [signed-in Chrome rehearsal](history-import.md#manual-acceptance-in-your-signed-in-chrome)
+   for real Gmail capture, import, cache reuse, review persistence, unknown sender
+   navigation and unavailable-service behavior.
+2. Complete the briefing: prioritize/cap current concerns and open commitments,
+   separate recent message-specific signals, collapse source evidence, and support
+   resolving concerns in the panel as well as commitments. Core supports both.
+3. Review the completed import/client-isolation integration with another teammate.
+   Registration and current-message orchestration now call core actions.
+4. Rehearse startup with a teammate and measure the three context questions.
+   Preference-change review and reply drafting remain deferred.
+
 ## Shared foundation and kickoff
 
 - [x] The foundation is merged to `main`; the documented root install, checks,
@@ -61,7 +127,7 @@ jointly across both feature areas; they agree on the concrete split as they go.
   reviews integration, and another teammate checks behavior. (Each PR author;
   Sergi reviews; a teammate checks behavior)
 - [ ] The team rehearses from a fresh Chrome load, including an unknown sender
-  and unavailable Gmail/Ollama. Static samples and fallbacks are labeled clearly.
+  and unavailable Gmail/Ollama. Failures show honest empty/error states without substitute answers.
   (Everyone)
 - [ ] The team compares time to answer the same three questions from raw
   messages and the brief; `main` remains runnable, with gaps recorded.

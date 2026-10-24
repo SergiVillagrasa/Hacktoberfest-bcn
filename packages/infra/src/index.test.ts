@@ -2,11 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   LocalStorageHistoryPort,
   LocalStorageProfilePort,
-  OllamaInferenceAdapter,
-  SAMPLE_CLIENT,
-  SAMPLE_CURRENT_EMAIL,
-  SAMPLE_HISTORICAL_EMAILS,
 } from './index';
+import { SAMPLE_CLIENT, SAMPLE_HISTORICAL_EMAILS } from './test-fixtures';
 
 describe('LocalStorageProfilePort & HistoryPort', () => {
   it('saves and finds profile by email and id', async () => {
@@ -35,33 +32,43 @@ describe('LocalStorageProfilePort & HistoryPort', () => {
   });
 });
 
-describe('OllamaInferenceAdapter', () => {
-  it('extracts observations with exact excerpts in fallback mode', async () => {
-    // When Ollama daemon is offline or in test runner, fallback extracts verbatim excerpts
-    const adapter = new OllamaInferenceAdapter({
-      baseUrl: 'http://127.0.0.1:9999', // Port without Ollama to test fallback
-      timeoutMs: 500,
-      useFallbackOnOffline: true,
-    });
-
-    const candidates = await adapter.extract({
-      email: SAMPLE_CURRENT_EMAIL,
-      profile: SAMPLE_CLIENT,
-      sources: SAMPLE_HISTORICAL_EMAILS,
-    });
-
-    expect(candidates.length).toBeGreaterThan(0);
-    for (const c of candidates) {
-      expect(['concern', 'commitment', 'goal', 'preference', 'communication_signal']).toContain(
-        c.kind
-      );
-      expect(c.sourceExcerpt.length).toBeGreaterThan(0);
-      // Check that excerpt really exists in one of the emails
-      const allEmails = [SAMPLE_CURRENT_EMAIL, ...SAMPLE_HISTORICAL_EMAILS];
-      const match = allEmails.find((e) => e.id === c.sourceEmailId);
-      expect(match).toBeDefined();
-      expect(match?.body.includes(c.sourceExcerpt)).toBe(true);
-    }
-    expect(adapter.getLastInferenceMode()).toBe('offline-fallback');
+describe('legacy scripted-data cleanup', () => {
+  it('removes scripted and fallback facts through both lookup keys while keeping reviewed model results', async () => {
+    const port = new LocalStorageProfilePort();
+    const base = {
+      id: 'model-item', kind: 'goal' as const, text: 'A model result',
+      sourceEmailId: 'captured-1', sourceExcerpt: 'A goal', review: 'confirmed' as const,
+    };
+    await port.save({ ...SAMPLE_CLIENT, items: [
+      { ...base, inference: 'ollama-live' },
+      { ...base, id: 'fallback-item', inference: 'offline-fallback' },
+      { ...base, id: 'init-item-1' },
+      { ...base, id: 'model-from-seed', sourceEmailId: 'sergi-msg-01', inference: 'ollama-live' },
+    ] });
+    expect((await port.findById(SAMPLE_CLIENT.id))?.items).toEqual([
+      { ...base, inference: 'ollama-live' },
+    ]);
+    expect((await port.findByEmail(SAMPLE_CLIENT.email))?.items).toHaveLength(1);
   });
+
+  it('deletes bundled history while preserving captured messages and explicit imports', async () => {
+    const port = new LocalStorageHistoryPort();
+    const email = SAMPLE_HISTORICAL_EMAILS[0]!;
+    await port.save('client', [
+      { ...email, id: 'm-rovira-01' },
+      { ...email, id: 'sergi-msg-01' },
+      { ...email, id: 'real-capture', source: 'gmail' },
+      { ...email, id: 'explicit-import' },
+    ]);
+    const { emails } = await port.list('client');
+    expect(emails.map((item) => item.id)).toEqual(['real-capture', 'explicit-import']);
+    expect((await port.list('client')).emails).toEqual(emails);
+  });
+});
+
+it('runs legacy cleanup once so a later explicit import may reuse the old fixture IDs', async () => {
+  const history = new LocalStorageHistoryPort();
+  await history.list('client');
+  await history.save('client', [{ ...SAMPLE_HISTORICAL_EMAILS[0]!, id: 'sergi-msg-01' }]);
+  expect((await history.list('client')).emails).toHaveLength(1);
 });
