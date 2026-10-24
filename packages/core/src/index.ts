@@ -1,5 +1,22 @@
+export type {
+  ClientBriefing,
+  ClientIdentity,
+  ClientProfile,
+  ContextCandidate,
+  ContextItem,
+  ContextKind,
+  EmailContext,
+  HistoryCoverage,
+  PanelState,
+} from '@briefing/contracts';
+
 import type {
-  ClientBriefing, ClientProfile, ContextCandidate, ContextItem, EmailContext, HistoryCoverage,
+  ClientBriefing,
+  ClientProfile,
+  ContextCandidate,
+  ContextItem,
+  EmailContext,
+  HistoryCoverage,
 } from '@briefing/contracts';
 
 // Exact matching is an application rule. Never fall back to the last client.
@@ -14,6 +31,7 @@ export interface HistoryPort {
 
 export interface ProfilePort {
   findByEmail(senderEmail: string): Promise<ClientProfile | undefined>;
+  findById?(clientId: string): Promise<ClientProfile | undefined>;
   save(profile: ClientProfile): Promise<void>;
 }
 
@@ -40,3 +58,7 @@ export interface ClientContextUseCases {
   reviewItem(clientId: string, itemId: string, review: 'confirmed' | 'dismissed'): Promise<void>;
   resolveItem(clientId: string, itemId: string): Promise<void>;
 }
+
+export * from './coverage';
+export * from './evidence';
+export * from './service';
