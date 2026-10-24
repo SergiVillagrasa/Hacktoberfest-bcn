@@ -1,0 +1,10 @@
+{
+  "name": "@briefing/infra",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "dependencies": {
+    "@briefing/contracts": "workspace:*",
+    "@briefing/core": "workspace:*"
+  }
+}

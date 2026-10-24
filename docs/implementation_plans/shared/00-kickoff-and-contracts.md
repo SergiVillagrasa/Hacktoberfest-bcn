@@ -1,6 +1,10 @@
 # Kickoff and shared contracts
 
-Owner: Sergi leads; Albert and Joana participate. Status: planned for the event.
+Owner: Sergi leads; Albert and Joana participate. Status: foundation implemented on
+`feat/sidepanel-shell`, pending PR review. Lane selection remains open. See
+[Sergi's foundation plan](../Sergi/01-foundation.md) and the root README for the
+implemented exports, commands and verification; the remaining sections retain
+the kickoff approach.
 
 ## Outcome and affected areas
 

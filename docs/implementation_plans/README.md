@@ -1,6 +1,6 @@
 # Implementation plans
 
-Read [architecture.md](../../architecture.md) and [AGENTS.md](../../AGENTS.md) before acting on a plan. These are concise implementation plans prepared for the event, with no Superpowers dependency. They describe intended work; none of the application features are implemented yet.
+Read [architecture.md](../../architecture.md) and [AGENTS.md](../../AGENTS.md) before acting on a plan. These are concise implementation plans prepared for the event, with no Superpowers dependency. The first foundation is being implemented on `feat/sidepanel-shell`; feature-lane services remain planned. See the root README for the current commands and handoff.
 
 ## Shared preparation and work lanes
 
@@ -16,7 +16,7 @@ Read [architecture.md](../../architecture.md) and [AGENTS.md](../../AGENTS.md) b
 - [Albert](Albert/01-feature-lane.md): select one ready-to-use lane with Joana, then implement its contract and main path.
 - [Joana](Joana/01-feature-lane.md): take the complementary lane, then implement its contract and main path.
 
-Record the Albert/Joana lane selection here and in their plans at kickoff. It is intentionally unassigned now. The requested root folder "implementation plans" is a relative directory symlink to this location; store plans only here.
+Record the Albert/Joana lane selection here and in their plans at kickoff. It is intentionally unassigned now. Store plans only here; the old root shortcut was removed.
 
 ## Timing and handoffs
 

@@ -1,0 +1,23 @@
+{
+  "name": "hacktoberfest-bcn",
+  "private": true,
+  "type": "module",
+  "packageManager": "bun@1.4.3",
+  "workspaces": ["apps/*", "packages/*"],
+  "overrides": {
+    "vite": "^7.3.7",
+    "@vitejs/plugin-react": "^5.0.0"
+  },
+  "scripts": {
+    "dev": "bun run --filter @briefing/extension dev",
+    "prepare": "bun run --filter @briefing/extension prepare",
+    "typecheck": "bun run prepare && tsc --noEmit && bun run --filter @briefing/extension typecheck",
+    "test": "vitest run",
+    "build": "bun run --filter @briefing/extension build"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "~5.9.3",
+    "vitest": "^3.2.4"
+  }
+}

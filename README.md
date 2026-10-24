@@ -9,24 +9,24 @@ Local client briefing assistant for bank relationship managers. A Chrome side pa
 3. Read the [team setup](setup-hacktoberfest.md) and [research findings](research-bank-manager-sidebar.md).
 4. Use the [implementation plan index](docs/implementation_plans/README.md) to find your member plan and feature lane.
 
-## Preparation status
+## Foundation status
 
-This folder contains planning documents, portable project skills, and the agreed monorepo directories. Application code, dependency manifests, the lockfile, sample data and the GitHub repository will be created at the event. No application checks have run yet. The folder name is a working project name; the team can choose its public name at kickoff.
-
-The two earlier documents have been copied here so this folder can become the repository root. Use these in-folder copies going forward; the older copies in Documentos are preserved as prior snapshots.
+The first application foundation provides Bun workspaces, shared contracts, core
+ports, Vitest and a WXT/React side panel. The toolbar opens an honest empty state.
+Gmail capture, history import, storage, Ollama and the briefing/review services are
+pending. No demo inbox or static analysis fallback is included.
 
 ```text
 architecture.md                    Protected architecture
 AGENTS.md                          Assistant entry point and skill routing
 setup-hacktoberfest.md             Shared product/stack/team decisions
 research-bank-manager-sidebar.md   Findings, sources and sidebar priorities
-apps/extension/                    Future WXT/React extension
-packages/contracts/                Future framework-independent contracts
-packages/core/                     Future domain rules, ports and use cases
-packages/infra/                    Future storage, history and Ollama adapters
+apps/extension/                    WXT/React extension and composition ownership
+packages/contracts/                Shared value types and capture validation
+packages/core/                     Exact client matching, ports and service interfaces
+packages/infra/                    Adapter export placeholder
 docs/implementation_plans/         Concise plans and member folders
 docs/design_plans/                 Reserved for explicitly requested designs
-implementation plans -> docs/implementation_plans
 skills/                            Five local assistant skills
 LICENSE                            MIT license for project code
 ```
@@ -41,13 +41,53 @@ LICENSE                            MIT license for project code
 
 The two available lanes are Gmail capture/import and local AI/client-context services. Feature plans for both are already written and linked from each member's plan.
 
-## At the event
+## Run locally
 
-Use the [kickoff plan](docs/implementation_plans/shared/00-kickoff-and-contracts.md). Create an empty GitHub repository and connect this existing folder as its local repository; avoid generating another README/license remotely. Publish the preparation files as the initial baseline, then create feat/sidepanel-shell for the application foundation. The team should use separate local clones/checkouts for concurrent branches.
+Run all commands from the repository root. Verified toolchain: Bun 1.4.3 and
+Node 22.22.2 (Vite 7 requires Node 20.19+ or 22.12+). Use a recent Chrome;
+the manifest requires Chrome 116+. Dependencies resolve through `bun.lock`.
 
-Install and manage project dependencies from the root Bun workspace once the foundation manifests exist. Agree on root scripts for dev, typecheck, test and build. The test script must run Vitest. These are planned script names, not commands available in the current preparation folder.
+```sh
+bun install --frozen-lockfile
+bun run typecheck
+bun run test
+bun run build
+```
 
-Use a recent Chrome, Bun, a Node version compatible with the selected WXT/Vite release, Git and local Ollama. qwen3:1.7b has already been confirmed fast on Sergi's computer. Match tool versions across the team during foundation setup and commit bun.lock.
+In `chrome://extensions`, enable Developer mode, choose **Load unpacked**, and
+select `apps/extension/.output/chrome-mv3`. Pin **Client briefing** and click its
+toolbar icon. The panel should show **No message connected** and explain that
+capture and analysis are pending. This path does not require Gmail or Ollama.
+
+`bun run dev` starts WXT with hot reload and its browser runner. For the simplest
+manual Chrome check, use the production-build loading steps above. Never use
+real client data.
+
+`bun run prepare` regenerates WXT types; installation and typecheck also run it.
+`bun run test` runs Vitest, with separate domain and WXT extension projects.
+Vite 7 and React plugin 5 are aligned through root overrides so WXT and Vitest
+use compatible plugin types. Keep extension tests outside `entrypoints/` so WXT
+does not treat tests as extension entry points.
+
+## Teammate handoff
+
+After the foundation PR merges, update each local checkout from `main` and create
+the feature branches from that baseline. Albert and Joana choose between
+`feat/gmail-context` and `feat/local-ai-profile`; neither lane is preassigned.
+
+Workspace exports are `@briefing/contracts`, `@briefing/core` and
+`@briefing/infra`. Contracts provides email/source, evidence, review, coverage,
+panel-state and capture-envelope types plus `isEmailContext`/`isCaptureMessage`.
+Core exports exact `matchClient`, `HistoryPort`, `ProfilePort`, `InferencePort`
+and `ClientContextUseCases` integration signatures; the service implementations
+are pending. Infra exports no adapters yet.
+
+Sergi coordinates contract edits and owns extension composition under
+[`apps/extension/lib/`](apps/extension/lib/README.md). That handoff describes
+message names, request identity, navigation clearing and handler boundaries.
+Shape validation does not replace sender-origin or client/evidence validation.
+Keep the permissions minimal: the shell requests only `sidePanel`; feature PRs
+add Gmail, Chrome storage or loopback access when implemented.
 
 Keep the primary demonstration on Sergi's computer: labeled imported fictional history plus live extraction from the current Gmail message. Display missing history honestly and retain a clearly labeled fallback. Reserve the final integration/rehearsal period; implement the approved preference-change stretch feature only after the briefing flow works.
 
