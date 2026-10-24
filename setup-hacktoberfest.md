@@ -2,6 +2,15 @@
 
 This project-folder copy is the working team guide. Read [architecture.md](architecture.md) before implementing: it is authoritative and requires Sergi's prior permission for edits. Concise member plans are in [docs/implementation_plans](docs/implementation_plans/README.md); project skills and assistant rules are indexed in [AGENTS.md](AGENTS.md).
 
+**Foundation implementation:** `feat/sidepanel-shell` adds the first Bun/WXT
+workspace and empty panel. Current root commands are `bun install --frozen-lockfile`,
+`bun run dev`, `bun run typecheck`, `bun run test` (Vitest), and `bun run build`.
+Verified tooling: Bun 1.4.3, Node 22.22.2, WXT 0.20.27, React 19.3.1,
+TypeScript 5.9.3 and Vitest 3.2.7. See the [README](README.md#run-locally) for
+Chrome loading and the package/API handoff. The preparation instructions below
+describe the original event plan; capture, model and storage integrations remain
+pending, and Albert/Joana lane selection is still open.
+
 ## The idea
 
 Build a local client briefing assistant for a bank relationship manager responsible for many clients. When the manager opens a fictional client email in Gmail, a Chrome side panel brings back the relevant history: recent concerns, unresolved requests and promises, stated goals and preferences, and recent communication signals with source excerpts. The manager uses this context to prepare conversations and make informed service or commercial decisions. Reply drafting is an optional secondary feature.
