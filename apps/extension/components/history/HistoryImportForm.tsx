@@ -43,12 +43,12 @@ export function HistoryImportForm({ clientEmail, busy, onImport }: Props) {
           (incoming or outgoing). Manager replies need recipientEmail
           matching the client. sentAt is optional, in ISO format with a timezone.</p>
         <p>Import saves messages without creating confirmed facts. Then choose
-          “Analyze history with Qwen3” to generate suggestions.</p>
+          “Analyze history with Gemma4” to generate suggestions.</p>
         <button className="btn btn-primary" type="submit" disabled={!file || busy || reading}>
           {reading ? 'Importing…' : 'Import messages'}
         </button>
         {error && <p role="alert" className="action-error">{error}</p>}
-        {complete && <p role="status">History imported. You can now analyze it with Qwen3.</p>}
+        {complete && <p role="status">History imported. You can now analyze it with Gemma4.</p>}
       </form>
     </details>
   );

@@ -195,7 +195,7 @@ export function App() {
     if (panelState.status !== 'ready' || historyBusy) return;
     const generation = selection.snapshot();
     setHistoryBusy(true);
-    setActionMessage('Analyzing recorded messages with Qwen3…');
+    setActionMessage('Analyzing recorded messages with Gemma4…');
     try {
       const result = await service.analyzeHistory(panelState.briefing.client.id);
       if (selection.isCurrent(generation)) {
@@ -254,10 +254,10 @@ export function App() {
                 <span className="pulse-spinner" /> Analyzing…
               </span>
             ) : analysisCached ? (
-              <span className="badge-engine idle">Saved Qwen3 analysis</span>
+              <span className="badge-engine idle">Saved Gemma4 analysis</span>
             ) : engineStatus === 'ollama-live' ? (
               <span className="badge-engine live" title="Local AI connected to Ollama (http://127.0.0.1:11434)">
-                ● Ollama Qwen3
+                ● Ollama Gemma4
               </span>
             ) : (
               <span className="badge-engine idle">
@@ -296,7 +296,7 @@ export function App() {
           <div className="analysis-spinner" />
           <h2>Analyzing with the local model…</h2>
           <p>Extracting observations and source evidence from the current message with local AI.</p>
-          <span className="analysis-hint">Using local Ollama Qwen3</span>
+          <span className="analysis-hint">Using local Ollama Gemma4</span>
         </div>
       )}
 
@@ -350,7 +350,7 @@ export function App() {
             <div className="engine-banner banner-live">
               <span className="engine-banner-icon">🟢</span>
               <div className="engine-banner-text">
-                <strong>Live Qwen3 result:</strong> New observations come from the local model. Review their interpretation before confirming.
+                <strong>Live Gemma4 result:</strong> New observations come from the local model. Review their interpretation before confirming.
               </div>
             </div>
           )}
@@ -381,7 +381,7 @@ export function App() {
               busy={historyBusy} onImport={handleImport} />
             <button className="btn" disabled={historyBusy || clientHistory.length === 0}
               onClick={() => void handleAnalyzeHistory()}>
-              {historyBusy ? 'Analyzing history…' : 'Analyze history with Qwen3'}
+              {historyBusy ? 'Analyzing history…' : 'Analyze history with Gemma4'}
             </button>
             {actionMessage && <p role="status">{actionMessage}</p>}
             {activeEmail && <button className="btn" disabled={historyBusy}
@@ -416,7 +416,7 @@ export function App() {
                       <span>Review: {item.review}</span>
                       {item.review === 'suggested' ? (
                         <span className={`origin-badge ${item.inference === 'ollama-live' ? 'origin-live' : 'origin-fallback'}`}>
-                          {item.inference === 'ollama-live' ? 'Suggested by Qwen3' : 'Origin not recorded'}
+                          {item.inference === 'ollama-live' ? 'Suggested by Gemma4' : 'Origin not recorded'}
                         </span>
                       ) : (
                         <span className="origin-badge" style={{ background: '#e2e8f0', color: '#475569' }}>
@@ -477,7 +477,7 @@ export function App() {
                       <span>Source: {item.sourceEmailId}</span>
                       {item.review === 'suggested' ? (
                         <span className={`origin-badge ${item.inference === 'ollama-live' ? 'origin-live' : 'origin-fallback'}`}>
-                          {item.inference === 'ollama-live' ? 'Suggested by Qwen3' : 'Origin not recorded'}
+                          {item.inference === 'ollama-live' ? 'Suggested by Gemma4' : 'Origin not recorded'}
                         </span>
                       ) : (
                         <span className="origin-badge" style={{ background: '#e2e8f0', color: '#475569' }}>
@@ -527,7 +527,7 @@ export function App() {
                     <span>Source: {item.sourceEmailId}</span>
                     {item.review === 'suggested' ? (
                       <span className={`origin-badge ${item.inference === 'ollama-live' ? 'origin-live' : 'origin-fallback'}`}>
-                        {item.inference === 'ollama-live' ? 'Suggested by Qwen3' : 'Origin not recorded'}
+                        {item.inference === 'ollama-live' ? 'Suggested by Gemma4' : 'Origin not recorded'}
                       </span>
                     ) : (
                       <span className="origin-badge" style={{ background: '#e2e8f0', color: '#475569' }}>

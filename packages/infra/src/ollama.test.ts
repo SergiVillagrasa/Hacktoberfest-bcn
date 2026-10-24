@@ -41,7 +41,7 @@ describe('Ollama inference provenance', () => {
     expect(await adapter.extract(input)).toEqual([{ ...item, inference: 'ollama-live' }]);
     expect(adapter.getLastInferenceMode()).toBe('ollama-live');
     const request = JSON.parse(fetchMock.mock.calls[0]![1].body);
-    expect(request).toMatchObject({ model: 'qwen3:1.7b', think: false, stream: false });
+    expect(request).toMatchObject({ model: 'gemma4:e4b', think: false, stream: false });
     expect(request.format.properties.items.items.properties.sourceEmailId.enum).toEqual([SAMPLE_CURRENT_EMAIL.id]);
     expect(request.options.num_predict).toBeGreaterThan(0);
     expect(request.options.num_predict).toBeLessThanOrEqual(512);

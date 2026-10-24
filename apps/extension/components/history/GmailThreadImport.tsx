@@ -62,7 +62,7 @@ export function GmailThreadImport({ clientEmail = '', disabled, onImport }: Prop
         </button>
       </form>}
       {error && <p role="alert" className="action-error">{error}</p>}
-      {complete && <p role="status">Thread imported. Choose “Analyze history with Qwen3” to generate suggestions.</p>}
+      {complete && <p role="status">Thread imported. Choose “Analyze history with Gemma4” to generate suggestions.</p>}
     </section>
   );
 }

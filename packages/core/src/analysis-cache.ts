@@ -1,7 +1,7 @@
 import type { ClientProfile, EmailContext } from '@briefing/contracts';
 
 // Bump when model, prompt, parsing or evidence policy changes.
-export const ANALYSIS_REVISION = 'qwen3:1.7b-history-v4-english-current-source';
+export const ANALYSIS_REVISION = 'gemma4:e4b-history-v1';
 
 export function messageContent(email: EmailContext): string {
   return JSON.stringify([email.id, email.senderEmail, email.recipientEmail ?? null,

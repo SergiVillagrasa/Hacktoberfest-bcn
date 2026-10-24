@@ -14,7 +14,7 @@ export interface OllamaAdapterConfig {
 
 const DEFAULT_CONFIG: Required<OllamaAdapterConfig> = {
   baseUrl: 'http://127.0.0.1:11434',
-  model: 'qwen3:1.7b',
+  model: 'gemma4:e4b',
   timeoutMs: 0, // 0 = timeout disabled (waits for model completion)
 };
 
